@@ -111,6 +111,9 @@ public sealed class UndoLearner
     /// <summary>
     /// Ручная конверсия: человек хоткеем превратил <paramref name="from"/> в <paramref name="to"/>.
     /// Если это точный откат нашей недавней правки — засчитываем.
+    ///
+    /// Возвращает true, когда откат РАСПОЗНАН. Занесено ли слово в исключения — отдельный вопрос,
+    /// на него отвечает событие <see cref="Learned"/>.
     /// </summary>
     public bool NoteManualConvert(string from, string to)
     {
@@ -126,12 +129,16 @@ public sealed class UndoLearner
         }
 
         _candidate = null;
-        return RegisterUndo(candidate.Original);
+        RegisterUndo(candidate.Original);
+        return true;
     }
 
     /// <summary>
     /// Наблюдение за набором. Зовётся после каждого печатного символа и Backspace с текущим словом
-    /// из буфера. Возвращает true, если откат подтверждён.
+    /// из буфера.
+    ///
+    /// Возвращает true, когда откат РАСПОЗНАН, а не когда слово выучено: порог набирается за
+    /// несколько откатов, и первый из них — такой же откат, как третий.
     /// </summary>
     public bool Observe(string currentWord)
     {
@@ -148,7 +155,8 @@ public sealed class UndoLearner
             if (current == candidate.Original)
             {
                 _candidate = null;
-                return RegisterUndo(candidate.Original);
+                RegisterUndo(candidate.Original);
+                return true;
             }
 
             // Ещё строит оригинал — ждём. Ушёл в сторону — это не откат.
@@ -218,14 +226,22 @@ public sealed class UndoLearner
         _sessionProtected.Clear();
     }
 
-    /// <summary>Засчитать откат. true — накоплен порог и слово занесено в исключения.</summary>
-    private bool RegisterUndo(string word)
+    /// <summary>
+    /// Засчитать откат: защитить слово в этом контексте, увеличить счётчик и, если накоплен порог,
+    /// занести в исключения.
+    ///
+    /// ⚠️ НИЧЕГО НЕ ВОЗВРАЩАЕТ, И ЭТО ПРИНЦИПИАЛЬНО. Раньше метод отдавал «накоплен ли порог», а
+    /// вызывающие возвращали это значение наружу как ответ на вопрос «был ли откат». Два разных
+    /// смысла в одном значении: при первом откате метод честно отвечал «нет», хотя откат был.
+    /// Факт отката знают вызывающие, а о занесении в исключения сообщает событие Learned.
+    /// </summary>
+    private void RegisterUndo(string word)
     {
         _sessionProtected.Add(word);
 
         if (!Enabled)
         {
-            return false;
+            return;
         }
 
         var now = Clock();
@@ -242,7 +258,7 @@ public sealed class UndoLearner
 
         if (count < StrikeThreshold || _exceptions.Learned.Contains(word))
         {
-            return false;
+            return;
         }
 
         // Порог достигнут. Слово переезжает в ВИДИМЫЙ и редактируемый список — человек может
@@ -259,7 +275,6 @@ public sealed class UndoLearner
         Save();
 
         Learned?.Invoke(word);
-        return true;
     }
 
     private Candidate? LiveCandidate()
