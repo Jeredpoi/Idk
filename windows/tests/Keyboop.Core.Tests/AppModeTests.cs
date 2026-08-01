@@ -162,7 +162,7 @@ public class ExceptionStoreEditingTests
     {
         var store = Fresh();
         store.ReplaceAppModes([line]);
-        Assert.Equal(mode, store.AppMode(app));
+        Assert.Equal(mode, store.ModeFor(app));
     }
 
     /// <summary>
@@ -186,6 +186,6 @@ public class ExceptionStoreEditingTests
     {
         var store = Fresh();
         store.ReplaceAppModes(["Code.exe=soft"]);
-        Assert.Equal("soft", store.AppMode("code.EXE"));
+        Assert.Equal("soft", store.ModeFor("code.EXE"));
     }
 }

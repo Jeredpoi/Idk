@@ -92,7 +92,7 @@ internal sealed class ForegroundApp
 
         // Выбор человека сильнее встроенных умолчаний: он мог как добавить программу, так и убрать
         // её из списка, и второе тоже надо уважать.
-        var userMode = _exceptions.AppMode(_cachedExecutable);
+        var userMode = _exceptions.ModeFor(_cachedExecutable);
         _cachedMode = string.IsNullOrEmpty(userMode)
             ? BuiltinAppModes.For(_cachedExecutable)
             : userMode;

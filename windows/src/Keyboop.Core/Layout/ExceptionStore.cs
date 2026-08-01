@@ -57,8 +57,14 @@ public sealed class ExceptionStore : IExceptionStore
 
     public IReadOnlySet<string> Learned => _learned;
 
-    /// <summary>«off» — не трогать совсем, «soft» — мягко, «» — обычный режим.</summary>
-    public string AppMode(string appId) =>
+    /// <summary>
+    /// Режим для программы: «off» — не трогать совсем, «soft» — мягко, «» — обычный.
+    ///
+    /// ⚠️ Метод НЕ должен называться AppMode: тогда он перекрывает одноимённый статический класс,
+    /// и внутри этого файла AppMode.Off перестаёт компилироваться (CS0119). Ровно на это уже
+    /// наступили.
+    /// </summary>
+    public string ModeFor(string appId) =>
         _appModes.TryGetValue(appId, out var mode) ? mode : string.Empty;
 
     public void SetAppMode(string appId, string mode)
