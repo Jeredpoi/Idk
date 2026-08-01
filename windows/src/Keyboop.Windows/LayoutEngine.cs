@@ -120,6 +120,15 @@ internal sealed class LayoutEngine
     /// </summary>
     internal void ConvertManually()
     {
+        // ⚠️ ГРУППА ТОЛЬКО ПРИ ВЫКЛЮЧЕННОЙ АВТОМАТИКЕ. При включённой авто чинит каждое слово
+        // по отдельности и не обновляет историю сессии — та расходится с экраном, и групповая
+        // печать шла бы по устаревшей модели, портя текст. При авто группа к тому же не нужна:
+        // чинить обычно уже нечего.
+        if (!AutoEnabled && ConvertGroup())
+        {
+            return;
+        }
+
         var target = _buffer.WordForConversion();
         if (target is null)
         {
@@ -238,6 +247,83 @@ internal sealed class LayoutEngine
         }
 
         Apply(item, converted, decision.ToCyrillic, completedOnly: true, reason: "авто");
+    }
+
+    /// <summary>
+    /// Переключить всю набранную фразу одним хоткеем.
+    ///
+    /// Слова разбираются ПООТДЕЛЬНОСТИ: валидные остаются как есть, чинятся только те, что
+    /// детектор считает набранными не в той раскладке. Иначе «hello ghbdtn» превратилось бы
+    /// в кашу целиком, вместо «hello привет».
+    ///
+    /// Возвращает true, если группа обработана — в том числе когда чинить оказалось нечего.
+    /// Это НЕ ошибка и падать на одно-словную логику нельзя: она force-конвертировала бы
+    /// последнее валидное слово в мусор.
+    /// </summary>
+    private bool ConvertGroup()
+    {
+        var group = _buffer.GroupForConversion();
+        if (group is null)
+        {
+            return false;
+        }
+
+        var g = group.Value;
+        var output = new System.Text.StringBuilder();
+        var converted = 0;
+        var lastToCyrillic = false;
+        string? previous = null;
+
+        foreach (var (word, tail) in g.Words)
+        {
+            var decision = LayoutDetector.Decide(word, _data, _exceptions, previous);
+
+            if (decision.ShouldConvert)
+            {
+                var fixedWord = Keymap.SmartConvert(
+                    word, decision.ToCyrillic, w => _data.WordsRu.Contains(w));
+
+                output.Append(fixedWord).Append(tail);
+                lastToCyrillic = decision.ToCyrillic;
+                previous = fixedWord;
+                converted++;
+            }
+            else
+            {
+                output.Append(word).Append(tail);
+                previous = word;
+            }
+        }
+
+        if (converted == 0)
+        {
+            Log.Write($"группа: все {g.Words.Count} слов(а) валидны — не трогаю");
+            return true;
+        }
+
+        // Инвариант длины: конверсия посимвольная, значит напечатанное обязано совпасть с
+        // удаляемым. Если разошлось — печатать вслепую нельзя, это порча текста.
+        if (output.Length != g.DeleteCount)
+        {
+            Log.Write($"группа: длина {output.Length} ≠ {g.DeleteCount} — отказ");
+            return true;
+        }
+
+        if (!TextInjector.ReplaceText(g.DeleteCount, output.ToString()))
+        {
+            Log.Write("группа: система не приняла пакет");
+            return true;
+        }
+
+        _buffer.Clear();
+        _protectedWords.Clear();
+        KeyboardLayoutSwitcher.Switch(lastToCyrillic);
+
+        Log.Write($"группа: починено {converted} из {g.Words.Count} слов, "
+                  + $"{g.DeleteCount} симв. → {(lastToCyrillic ? "RU" : "EN")}");
+
+        Converted?.Invoke(lastToCyrillic);
+        return true;
     }
 
     /// <summary>
