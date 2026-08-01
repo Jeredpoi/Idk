@@ -29,10 +29,6 @@ final class EventTap {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var mouseMonitor: Any?
-    /// Когда тапу в последний раз принесли событие. Инициализируем «сейчас», а не нулём: иначе
-    /// свежезапущенное приложение первые две минуты считалось бы молчащим.
-    private var lastEventAt = ProcessInfo.processInfo.systemUptime
-
     /// Моменты системных отключений тапа — для предохранителя (см. ветку .tapDisabledBy*).
     private var tapTimeouts: [TimeInterval] = []
     private let tapStormWindow: TimeInterval = 60
@@ -92,7 +88,6 @@ final class EventTap {
     private var otherKeyBetweenTaps = false
     private var voiceActive = false
     private var voiceComboArmed = false             // комбинация модификаторов диктовки сейчас зажата целиком
-    private var voiceKeyArmed = false
     private var lastVoiceToggle: TimeInterval = 0   // debounce toggle (не зависит от keyUp)
     private var deadState: UInt32 = 0               // состояние мёртвых клавиш для UCKeyTranslate-фолбэка
     private var cacheFallbackCount = 0              // сколько раз CG-строка была пуста (диагностика 23.07)
@@ -236,6 +231,10 @@ final class EventTap {
         swallowedDownKeyCodes.removeAll()
         if let s = runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetCurrent(), s, .commonModes) }
         runLoopSource = nil
+        // ⚠️ Порт НАДО инвалидировать явно (исправлено при ревью). Снятие ссылки освобождает
+        // объект, но не разрывает связь порта с WindowServer: за сессию мы пересоздаём тап и на
+        // предохранителе, и при неудачном оживлении, и каждый брошенный порт остаётся висеть.
+        if let t = tap { CFMachPortInvalidate(t) }
         tap = nil
     }
 
@@ -264,9 +263,9 @@ final class EventTap {
                 kbLog(String(format: "ввод придержан: событие пролежало %.0f мс, обработка %.1f мс", ageMs, bodyMs))
             }
         }
-        // Пульс тапа: единственное доказательство, что события НАМ ЕЩЁ НОСЯТ. Одна запись на событие,
-        // цена никакая, а без неё пробник живости врёт (см. isEngineLive).
-        lastEventAt = ProcessInfo.processInfo.systemUptime
+        // ⚠️ Здесь писался «пульс тапа» (lastEventAt). Поле удалено при ревью как мёртвое: его
+        // единственный читатель — опрос TCC после двух минут тишины — откачен 31.07 в тот же час
+        // (разбор в start()). Возвращать пульс есть смысл только вместе с новым читателем.
         // НАША СИНТЕТИКА (Backspace+Unicode из TextReplacer) помечена маркером в .eventSourceUserData.
         // Пропускаем её НАСКВОЗЬ, не трогая буфер/хоткей-состояние. Это надёжная замена временно́му
         // фильтру muted: реальный ввод пользователя теперь НИКОГДА не глотается (даже во время нашей
@@ -379,7 +378,7 @@ final class EventTap {
             // улетел в активное приложение.
             if keyCode == 53, s.escCancelsDictation, VoiceController.shared.isRecording {
                 onMain { VoiceController.shared.cancel() }
-                if s.voiceHoldMode == "toggle" { voiceKeyArmed = false } else { voiceActive = false }
+                if s.voiceHoldMode != "toggle" { voiceActive = false }
                 return swallowDown(keyCode)
             }
             // Мгновенное переключение языка комбинацией (⌘Space/⌃Space/своя): ГЛОТАЕМ, чтобы не
@@ -524,7 +523,6 @@ final class EventTap {
             // клавишу зажатой, и у человека умирает пробел (репорты #13/#22/#30).
             let upKey = event.getIntegerValueField(.keyboardEventKeycode)
             if s.voiceEnabled, s.voiceHotkeyMode == "key", keyMatches(upKey, s.voiceHotkeyKeyCode) {
-                voiceKeyArmed = false
                 if s.voiceHoldMode != "toggle", voiceActive {
                     voiceActive = false
                     VoiceGate.set(false)

@@ -207,6 +207,10 @@ final class Engine: EventTapHandler {
             secureInputTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
                 guard let self else { return }
                 self.noteSecureInput(IsSecureEventInputEnabled())
+                // Кэш «текущее приложение» освежаем и здесь, а не только на смене активного:
+                // человек может отредактировать исключения в Настройках, не переключая программу,
+                // и без этого правка не подействовала бы до следующего переключения окон.
+                self.refreshFrontmostAppCache()
                 // Фоновая сверка раскладки: в простое (2.5с+ после селектов) чтение TIS устоялось.
                 if self.layout.reconcileWithReality() {
                     kbLog("раскладка: фоновая сверка приняла реальность (мнение расходилось)")
@@ -432,12 +436,17 @@ final class Engine: EventTapHandler {
                            || (keyCode == 36 && settings.triggerEnter)
                            || (keyCode == 48 && settings.triggerTab)
             // Режим разработчика: в IDE/терминалах авто не трогаем (но ⌥⇧ вручную — работает).
-            if settings.developerMode && Engine.frontmostIsDevApp() {
+            // ⚠️ КЭШ, А НЕ NSWorkspace (см. предупреждение двадцатью строками выше). Мы внутри
+            // колбэка тапа, и здесь нельзя ничего дороже чтения поля: пока main занят, событие не
+            // обрабатывается, система считает тап зависшим и вырубает его — а он активный, то есть
+            // на это время встаёт ВЕСЬ ввод в системе. Ровно так 31.07 и уронили клавиатуру с мышью.
+            // Кэш обновляется на смене активного приложения и раз в 2.5с фоновым таймером.
+            if settings.developerMode && frontAppIsDev {
                 autoTrigger = false
                 silentLog("devapp", "авто молчит: dev-режим в IDE/терминале")
             }
             // Программа-исключение: "off" — совсем не трогаем; "soft" — мягко (см. convertFromBuffer).
-            let appMode = Engine.frontmostAppMode()
+            let appMode = frontAppMode
             if appMode == "off" {
                 autoTrigger = false
                 silentLog("appoff", "авто молчит: приложение в исключениях (режим «выкл»)")
@@ -740,8 +749,8 @@ final class Engine: EventTapHandler {
         // Верхняя граница та же, что у inline (колбэк должен оставаться коротким). Слова 17+ симв.
         // чинятся на границе слова, как и раньше.
         guard word.count >= 4, word.count <= 16, word != liveFixLast else { return }
-        if settings.developerMode && Engine.frontmostIsDevApp() { return }
-        guard Engine.frontmostAppMode().isEmpty else { return }
+        if settings.developerMode && frontAppIsDev { return }
+        guard frontAppMode.isEmpty else { return }
         guard !frontAppIsChromium else { return }   // вставка там ненадёжна — мид-слова не трогаем
         guard !secureInputWasOn else { return }
         // Фантомный предохранитель (24.07): экран уже показывает итог → выравниваем модель и молчим.
@@ -794,9 +803,14 @@ final class Engine: EventTapHandler {
         guard word.count >= 4, word.count <= 16, word != liveFixLast else { return }
         // Немой отказ здесь читается как «правка на лету не работает» (баг-репорт), поэтому
         // вердикт детектора пишем в лог: чаще всего он и есть причина — мид-слово он судит строго.
-        if !(word.hasCyrillic && word.hasLatinLetter),
-           case .convert = LayoutDetector.liveDecide(word: word) {} else {
-            kbLog("pause-fix: детектор не даёт конвертить (len \(word.count), \(Self.scriptClass(word)))")
+        // ⚠️ Смешанные слова тут НЕ судим (исправлено при ревью). Их обрабатывает ветка 1 ниже —
+        // это самолечение нашего же артефакта, и оно штатно. Прежнее условие писало «детектор не
+        // даёт конвертить» на КАЖДОМ успешном лечении, то есть лог обвинял детектор ровно тогда,
+        // когда всё сработало. По такому логу диагноз ставится неверный.
+        if !(word.hasCyrillic && word.hasLatinLetter) {
+            if case .convert = LayoutDetector.liveDecide(word: word) {} else {
+                kbLog("pause-fix: детектор не даёт конвертить (len \(word.count), \(Self.scriptClass(word)))")
+            }
         }
 
         // Ветка 1: самолечение смешанного слова (наш артефакт частичной конверсии — см. maybeLiveFix).
@@ -908,10 +922,10 @@ final class Engine: EventTapHandler {
         guard ProcessInfo.processInfo.systemUptime - lastRealKeyAt >= 0.14 else { return }
         let word = buffer.currentWord
         guard word.count >= 4, word != liveFixLast else { return }
-        if settings.developerMode && Engine.frontmostIsDevApp() { return }
+        if settings.developerMode && frontAppIsDev { return }
         // Программа-исключение (встроенная или пользовательская): off/soft → НЕ чиним на лету
         // (видеоредакторы/терминалы/код — синтетика мид-слова там особенно нежелательна).
-        if !Engine.frontmostAppMode().isEmpty { return }
+        if !frontAppMode.isEmpty { return }
         // ⚠️ Chromium/Electron (добавлено 28.07, дыра найдена при разборе #19): здесь этой проверки
         // НЕ БЫЛО, хотя inline-путь Chromium запрещает с 0.2.68 (F6). То есть мид-словная правка в
         // Chromium шла ИМЕННО этим путём — а там Unicode-вставка ненадёжна (Workflowy/Slack):
@@ -1478,8 +1492,8 @@ final class Engine: EventTapHandler {
             liveFixLast = ""; buffer.clear()
             return false
         }
-        if settings.developerMode && Engine.frontmostIsDevApp() { return false }
-        let appMode = Engine.frontmostAppMode()
+        if settings.developerMode && frontAppIsDev { return false }
+        let appMode = frontAppMode
         if appMode == "off" { return false }
         guard let prop = autoConversionProposal(word: word, soft: appMode == "soft") else { return false }
         // AX-предохранителя здесь НЕТ намеренно (финал аудита 24.07, R1): enter-pre работает
@@ -1680,7 +1694,11 @@ final class Engine: EventTapHandler {
             guard let self else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + self.muteDrain) { self.endSyntheticFlight() }
         }
-        buffer.commitSnippet(expansion: expansion, whitespace: ws)   // буфер: триггер→раскрытие, затем граница
+        // ⚠️ В БУФЕР КЛАДЁМ РОВНО ТО, ЧТО УШЛО НА ЭКРАН, — `body` и `glue`, а не исходные
+        // `expansion` и `ws`. Расхождение было двойным: `sanitizeSnippet` вырезает управляющие
+        // символы, а `glue` пустеет, когда раскрытие уже кончается нужным разделителем. То есть
+        // буфер считал длину больше экранной, и следующая замена стёрла бы лишний символ.
+        buffer.commitSnippet(expansion: body, whitespace: glue)   // буфер: триггер→раскрытие, затем граница
         buffer.invalidateGroupHistory()   // сниппет изменил длину экрана не 1:1 → группа недействительна (G1)
         playSound()
         kbLog("snippet: \(trigger.count)→\(body.count) симв., граница проглочена")  // контент не логируем

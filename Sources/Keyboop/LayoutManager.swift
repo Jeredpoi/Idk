@@ -149,7 +149,16 @@ final class LayoutManager {
         let sources = enabledKeyboardSources()
         let src: TISInputSource?
         if cyrillic {
-            src = sources.first { (Self.languages(of: $0).first ?? "").hasPrefix("ru") }
+            // ⚠️ БЛОБ РАСКЛАДКИ ОБЯЗАТЕЛЕН И ЗДЕСЬ (исправлено при ревью). Для латиницы эта проверка
+            // была (isUsableLatinLayout), а для кириллицы её забыли — хотя последствие то же самое и
+            // описано двадцатью строками ниже: TISSelectInputSource вернёт noErr, мнение станет
+            // «мы в кириллице», а KeyboardLayoutCache.refresh(fromSelected:) молча выйдет по своему
+            // guard — и в кэше останется ЧУЖОЙ блоб. Дальше тап декодирует каждое нажатие неверной
+            // раскладкой и «чинит» нормальный текст в мусор во всех программах. Самолечения у этого
+            // состояния нет, поэтому лучше честно не переключиться, чем переключиться вслепую.
+            src = sources.first {
+                (Self.languages(of: $0).first ?? "").hasPrefix("ru") && Self.hasLayoutBlob($0)
+            }
         } else {
             src = sources.first { (Self.languages(of: $0).first ?? "").hasPrefix("en") }
                 ?? sources.first { Self.isUsableLatinLayout($0) }
@@ -222,8 +231,15 @@ final class LayoutManager {
     /// у человека молча пропадают Option-акценты и мёртвые клавиши.
     private static func isUsableLatinLayout(_ src: TISInputSource) -> Bool {
         guard boolProp(src, kTISPropertyInputSourceIsASCIICapable) else { return false }
-        guard TISGetInputSourceProperty(src, kTISPropertyUnicodeKeyLayoutData) != nil else { return false }
+        guard hasLayoutBlob(src) else { return false }
         return !languages(of: src).isEmpty
+    }
+
+    /// У источника есть блоб раскладки, то есть по нему можно декодировать нажатия.
+    /// Методы ввода (вьетнамский Telex, CJK-IM) его не имеют — выбрав такой источник, мы оставили
+    /// бы в кэше блоб от ПРЕДЫДУЩЕЙ раскладки. См. разбор в isUsableLatinLayout и selectLayout.
+    private static func hasLayoutBlob(_ src: TISInputSource) -> Bool {
+        TISGetInputSourceProperty(src, kTISPropertyUnicodeKeyLayoutData) != nil
     }
 
     /// Названия ВКЛЮЧЁННЫХ раскладок — для шапки багрепорта.
