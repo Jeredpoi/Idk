@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Keyboop.Core.Layout;
 using Keyboop.Core.Snippets;
+using Keyboop.Core.Speech;
 using Keyboop.Windows.Diagnostics;
 using Keyboop.Windows.Interop;
 using Keyboop.Windows.Speech;
@@ -29,6 +30,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly ForegroundApp _foreground;
     private readonly SnippetStore _snippets;
     private readonly UndoLearner _undo;
+    private readonly VoiceHistory _history;
     private readonly TrayIcons _icons = new();
     private readonly System.Windows.Forms.Timer _layoutTimer = new();
     private VoiceState _state = VoiceState.Idle;
@@ -37,7 +39,8 @@ internal sealed class TrayApp : ApplicationContext
     internal TrayApp()
     {
         _settings = AppSettings.Load();
-        _voice = new VoiceController(_settings, _engine);
+        _history = new VoiceHistory(AppSettings.VoiceHistoryPath);
+        _voice = new VoiceController(_settings, _engine, _history);
 
         // Языковые данные лежат в папке data рядом с приложением и весят около пяти мегабайт,
         // поэтому читаются один раз лениво — первым обращением к LayoutData.Shared.
@@ -182,6 +185,7 @@ internal sealed class TrayApp : ApplicationContext
 
         menu.Items.Add(Toggle("Запускать при входе в систему", Autostart.IsEnabled, Autostart.Set));
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("История диктовок…", null, (_, _) => OpenHistory());
         menu.Items.Add("Показать лог", null, (_, _) => OpenLog());
         menu.Items.Add("Выход", null, (_, _) => ExitThread());
 
@@ -310,6 +314,12 @@ internal sealed class TrayApp : ApplicationContext
         _shownLayout = code;
         _tray.Icon = _icons.Layout(code);
         _tray.Text = $"Keyboop — {code}";
+    }
+
+    private void OpenHistory()
+    {
+        using var form = new HistoryForm(_history);
+        form.ShowDialog();
     }
 
     private static void OpenLog()

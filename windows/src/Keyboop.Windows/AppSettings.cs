@@ -77,6 +77,12 @@ public sealed class AppSettings
         AutoEnter = AutoEnter,
     };
 
+    /// <summary>История распознанного — чтобы текст не пропадал, если вставка не удалась.</summary>
+    public static string VoiceHistoryPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Keyboop",
+        "voice-history.json");
+
     /// <summary>Счётчики откатов для обучения на отмене.</summary>
     public static string UndoLearnPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

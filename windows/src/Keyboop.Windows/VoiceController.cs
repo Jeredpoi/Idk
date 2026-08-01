@@ -28,14 +28,16 @@ internal sealed class VoiceController : IDisposable
     private readonly MicrophoneRecorder _recorder = new();
     private readonly WhisperSpeechEngine _engine;
     private readonly AppSettings _settings;
+    private readonly VoiceHistory _history;
 
     /// <summary>Диктовку отменили по Escape — распознавать не нужно.</summary>
     private volatile bool _cancelled;
 
-    internal VoiceController(AppSettings settings, WhisperSpeechEngine engine)
+    internal VoiceController(AppSettings settings, WhisperSpeechEngine engine, VoiceHistory history)
     {
         _settings = settings;
         _engine = engine;
+        _history = history;
     }
 
     internal event Action<VoiceState>? StateChanged;
@@ -142,11 +144,17 @@ internal sealed class VoiceController : IDisposable
                 return;
             }
 
+            // ⚠️ В ИСТОРИЮ КЛАДЁМ ДО ПОПЫТКИ ВСТАВКИ. Вставка может не состояться по причинам, от
+            // человека не зависящим: активно поле пароля, окно закрылось, программа не принимает
+            // синтетический ввод. Записав только после успеха, мы теряли бы ровно те диктовки,
+            // которые человеку важнее всего вернуть.
+            _history.Add(text);
+
             if (!TextInjector.TypeText(text))
             {
                 // Текст распознан, но система его не приняла. Молчать нельзя: для человека это
                 // выглядит как потерянная диктовка.
-                Notice?.Invoke("Текст распознан, но его не удалось вставить в активное окно.");
+                Notice?.Invoke("Не удалось вставить текст. Он сохранён в истории диктовок.");
                 return;
             }
 
