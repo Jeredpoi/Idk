@@ -37,11 +37,20 @@ internal sealed class LayoutEngine
     private readonly AntiResonanceGuard _antiResonance = new();
     private readonly LayoutData _data;
     private readonly IExceptionStore _exceptions;
+    private readonly ForegroundApp _foreground;
 
-    internal LayoutEngine(LayoutData data, IExceptionStore exceptions)
+    /// <summary>
+    /// Слова, которые человек только что поправил вручную. Автоматика их не трогает до смены
+    /// контекста — иначе выходит драка: он переключает слово хоткеем, а следующий же пробел
+    /// возвращает всё обратно, и так по кругу.
+    /// </summary>
+    private readonly HashSet<string> _protectedWords = new(StringComparer.OrdinalIgnoreCase);
+
+    internal LayoutEngine(LayoutData data, IExceptionStore exceptions, ForegroundApp foreground)
     {
         _data = data;
         _exceptions = exceptions;
+        _foreground = foreground;
         _antiResonance.Logger = Log.Write;
     }
 
@@ -94,7 +103,12 @@ internal sealed class LayoutEngine
     }
 
     /// <summary>Клик мышью или смена окна: где каретка — мы больше не знаем.</summary>
-    internal void ResetContext() => _buffer.Clear();
+    internal void ResetContext()
+    {
+        _buffer.Clear();
+        _protectedWords.Clear();
+        _antiResonance.ResetHistory();
+    }
 
     /// <summary>
     /// Ручное переключение по хоткею: направление определяем по содержимому слова, а не по
@@ -119,7 +133,13 @@ internal sealed class LayoutEngine
             return;
         }
 
+        // ⚠️ Ручной хоткей НЕ проверяет режим приложения — сознательно. Человек нажал клавишу сам,
+        // глядя на конкретное слово; отказать ему здесь означало бы «программа меня не слушается».
+        // Гейт по режиму существует ради АВТОМАТИКИ, которая срабатывает без спроса.
         Apply(item, converted, toCyrillic, completedOnly: false, reason: "хоткей");
+
+        // Результат ручной правки защищаем: следующий пробел не должен вернуть всё назад.
+        _protectedWords.Add(converted);
     }
 
     private void HandleBoundary(uint virtualKey)
@@ -147,6 +167,28 @@ internal sealed class LayoutEngine
         }
 
         var item = target.Value;
+
+        // ⚠️ РЕЖИМ ПРИЛОЖЕНИЯ — ПЕРВЫМ ДЕЛОМ. В терминале и видеоредакторе наш Backspace означает
+        // совсем не «стереть символ»: он ломает введённую команду и удаляет клип на таймлинии.
+        // Дешевле всего проверить это до любой работы над словом.
+        var mode = _foreground.Mode;
+        if (mode == AppMode.Off)
+        {
+            return;
+        }
+
+        // Слово, которое человек только что поправил сам, автоматика не трогает.
+        if (_protectedWords.Contains(item.Word))
+        {
+            return;
+        }
+
+        // Мягкий режим (редакторы кода): одиночные буквы и повторы — это переменные и флаги,
+        // а не русские предлоги, набранные не в той раскладке.
+        if (mode == AppMode.Soft && SoftModeFilter.ShouldSkip(item.Word))
+        {
+            return;
+        }
 
         // Спасение смешанного слова идёт первым: обычный детектор такие слова всегда оставляет
         // как есть, и без этой ветки они застревали бы наполовину переключёнными.

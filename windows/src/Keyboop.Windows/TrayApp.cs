@@ -24,6 +24,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly SynchronizationContext _ui;
     private readonly LayoutEngine _layout;
     private readonly ExceptionStore _exceptions;
+    private readonly ForegroundApp _foreground;
 
     internal TrayApp()
     {
@@ -33,7 +34,8 @@ internal sealed class TrayApp : ApplicationContext
         // Языковые данные лежат в папке data рядом с приложением и весят около пяти мегабайт,
         // поэтому читаются один раз лениво — первым обращением к LayoutData.Shared.
         _exceptions = new ExceptionStore(AppSettings.ExceptionsPath);
-        _layout = new LayoutEngine(LayoutData.Shared, _exceptions)
+        _foreground = new ForegroundApp(_exceptions);
+        _layout = new LayoutEngine(LayoutData.Shared, _exceptions, _foreground)
         {
             AutoEnabled = _settings.LayoutAutoFix,
         };
@@ -144,12 +146,51 @@ internal sealed class TrayApp : ApplicationContext
             {
                 _settings.LayoutAutoFix = v;
                 _layout.AutoEnabled = v;
+                _foreground.Invalidate();
             }));
+        menu.Items.Add(new ToolStripSeparator());
+
+        // Мгновенное выключение. Нужно ровно на случай «что-то пошло не так прямо сейчас»:
+        // человек должен уметь остановить программу, не разбираясь и не убивая процесс
+        // через диспетчер задач.
+        _pauseItem = new ToolStripMenuItem("Приостановить") { CheckOnClick = true };
+        _pauseItem.CheckedChanged += (_, _) => SetPaused(_pauseItem.Checked);
+        menu.Items.Add(_pauseItem);
+
+        menu.Items.Add(Toggle("Запускать при входе в систему", Autostart.IsEnabled, Autostart.Set));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Показать лог", null, (_, _) => OpenLog());
         menu.Items.Add("Выход", null, (_, _) => ExitThread());
 
         return menu;
+    }
+
+    private ToolStripMenuItem? _pauseItem;
+
+    /// <summary>Пауза снимает перехватчик целиком: пока он снят, мы не видим ввод вообще.</summary>
+    private void SetPaused(bool paused)
+    {
+        if (paused)
+        {
+            _hook.Uninstall();
+            _tray.Text = "Keyboop — приостановлен";
+            return;
+        }
+
+        try
+        {
+            _hook.Install();
+            _tray.Text = "Keyboop — диктовка";
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Write($"хук: возобновить не удалось — {ex.Message}");
+            ShowBalloon("Не удалось возобновить работу. Подробности в логе.");
+            if (_pauseItem is not null)
+            {
+                _pauseItem.Checked = true;   // состояние меню обязано отражать правду
+            }
+        }
     }
 
     private ToolStripMenuItem Toggle(string title, bool initial, Action<bool> apply)

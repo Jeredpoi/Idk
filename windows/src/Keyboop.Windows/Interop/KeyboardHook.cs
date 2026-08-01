@@ -280,7 +280,13 @@ internal sealed class KeyboardHook : IDisposable
         DictationStopped?.Invoke();
     }
 
-    public void Dispose()
+    internal bool IsInstalled => _hook != IntPtr.Zero;
+
+    /// <summary>
+    /// Снять перехват. Состояние сбрасываем полностью: пока хука не было, отпускания проходили
+    /// мимо нас, и уцелевшие записи о парности съели бы отпускание следующих честных нажатий.
+    /// </summary>
+    internal void Uninstall()
     {
         if (_hook == IntPtr.Zero)
         {
@@ -290,5 +296,9 @@ internal sealed class KeyboardHook : IDisposable
         NativeMethods.UnhookWindowsHookEx(_hook);
         _hook = IntPtr.Zero;
         _swallowedDown.Clear();
+        _holdActive = false;
+        Log.Write("хук: перехват снят");
     }
+
+    public void Dispose() => Uninstall();
 }
