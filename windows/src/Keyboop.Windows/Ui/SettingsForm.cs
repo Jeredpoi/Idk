@@ -1,4 +1,5 @@
 using Keyboop.Core.Layout;
+using Keyboop.Core.Snippets;
 
 namespace Keyboop.Windows.Ui;
 
@@ -13,6 +14,7 @@ internal sealed class SettingsForm : Form
 {
     private readonly AppSettings _settings;
     private readonly ExceptionStore _exceptions;
+    private readonly SnippetStore _snippets;
     private readonly Action<bool> _setRecordingMode;
 
     private readonly HotkeyBox _dictationHotkey = new();
@@ -27,14 +29,20 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _autoEnter = new();
     private readonly TextBox _ignoredWords = new();
     private readonly TextBox _appModes = new();
+    private readonly TextBox _snippetLines = new();
 
     /// <summary>Настройки применены — вызывающий перевешивает хоткеи и сбрасывает кэши.</summary>
     internal event Action? Applied;
 
-    internal SettingsForm(AppSettings settings, ExceptionStore exceptions, Action<bool> setRecordingMode)
+    internal SettingsForm(
+        AppSettings settings,
+        ExceptionStore exceptions,
+        SnippetStore snippets,
+        Action<bool> setRecordingMode)
     {
         _settings = settings;
         _exceptions = exceptions;
+        _snippets = snippets;
         _setRecordingMode = setRecordingMode;
 
         Text = "Keyboop — настройки";
@@ -48,6 +56,7 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.Add(BuildHotkeysTab());
         tabs.TabPages.Add(BuildLayoutTab());
         tabs.TabPages.Add(BuildVoiceTab());
+        tabs.TabPages.Add(BuildSnippetsTab());
         Controls.Add(tabs);
 
         var save = new Button { Text = "Сохранить", Left = 320, Top = 392, Width = 90 };
@@ -190,6 +199,39 @@ internal sealed class SettingsForm : Form
         return page;
     }
 
+    private TabPage BuildSnippetsTab()
+    {
+        var page = new TabPage("Сниппеты");
+
+        page.Controls.Add(new Label
+        {
+            Left = 20,
+            Top = 16,
+            Width = 460,
+            Height = 34,
+            Text = "По строке на сокращение: сокращение = что подставить",
+        });
+
+        _snippetLines.SetBounds(20, 52, 460, 220);
+        _snippetLines.Multiline = true;
+        _snippetLines.ScrollBars = ScrollBars.Vertical;
+        _snippetLines.Font = new Font(FontFamily.GenericMonospace, 9);
+        page.Controls.Add(_snippetLines);
+
+        page.Controls.Add(new Label
+        {
+            Left = 20,
+            Top = 280,
+            Width = 460,
+            Height = 60,
+            ForeColor = SystemColors.GrayText,
+            Text = "Раскладка и регистр не важны: сокращение «адр» сработает и если набрать «flh», "
+                 + "забыв переключить язык.",
+        });
+
+        return page;
+    }
+
     private static Label Caption(string text, int top) =>
         new() { Left = 20, Top = top, Width = 170, Text = text };
 
@@ -228,6 +270,11 @@ internal sealed class SettingsForm : Form
         _autoEnter.Checked = _settings.AutoEnter;
 
         _ignoredWords.Lines = _exceptions.Ignored.OrderBy(w => w, StringComparer.Ordinal).ToArray();
+        _snippetLines.Lines = _snippets.All
+            .Select(p => $"{p.Key} = {p.Value}")
+            .OrderBy(l => l, StringComparer.Ordinal)
+            .ToArray();
+
         _appModes.Lines = _exceptions.AppModePairs()
             .Select(p => $"{p.Key}={p.Value}")
             .OrderBy(l => l, StringComparer.OrdinalIgnoreCase)
@@ -273,9 +320,34 @@ internal sealed class SettingsForm : Form
 
         _exceptions.ReplaceIgnored(_ignoredWords.Lines);
         _exceptions.ReplaceAppModes(_appModes.Lines);
+        _snippets.Replace(ParseSnippets(_snippetLines.Lines));
 
         Applied?.Invoke();
         Close();
+    }
+
+    /// <summary>
+    /// Разбор строк «сокращение = раскрытие». Делим по ПЕРВОМУ знаку равенства: в раскрытии
+    /// он встречается сплошь и рядом — в адресах, формулах, подписях.
+    /// </summary>
+    private static IEnumerable<KeyValuePair<string, string>> ParseSnippets(IEnumerable<string> lines)
+    {
+        foreach (var line in lines)
+        {
+            var parts = line.Split('=', 2);
+            if (parts.Length != 2)
+            {
+                continue;
+            }
+
+            var trigger = parts[0].Trim();
+            var expansion = parts[1].Trim();
+
+            if (trigger.Length > 0 && expansion.Length > 0)
+            {
+                yield return new KeyValuePair<string, string>(trigger, expansion);
+            }
+        }
     }
 
     private void Warn(string what) =>

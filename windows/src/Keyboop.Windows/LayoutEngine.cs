@@ -1,4 +1,5 @@
 using Keyboop.Core.Layout;
+using Keyboop.Core.Snippets;
 using Keyboop.Windows.Diagnostics;
 using Keyboop.Windows.Interop;
 
@@ -38,6 +39,7 @@ internal sealed class LayoutEngine
     private readonly LayoutData _data;
     private readonly IExceptionStore _exceptions;
     private readonly ForegroundApp _foreground;
+    private readonly SnippetStore _snippets;
 
     /// <summary>
     /// Слова, которые человек только что поправил вручную. Автоматика их не трогает до смены
@@ -46,11 +48,13 @@ internal sealed class LayoutEngine
     /// </summary>
     private readonly HashSet<string> _protectedWords = new(StringComparer.OrdinalIgnoreCase);
 
-    internal LayoutEngine(LayoutData data, IExceptionStore exceptions, ForegroundApp foreground)
+    internal LayoutEngine(
+        LayoutData data, IExceptionStore exceptions, ForegroundApp foreground, SnippetStore snippets)
     {
         _data = data;
         _exceptions = exceptions;
         _foreground = foreground;
+        _snippets = snippets;
         _antiResonance.Logger = Log.Write;
     }
 
@@ -177,6 +181,20 @@ internal sealed class LayoutEngine
             return;
         }
 
+        // ⚠️ СНИППЕТ ПРОВЕРЯЕМ ДО РАСКЛАДКИ. Если сокращение раскрылось, чинить в нём нечего —
+        // на экране уже не то слово, которое набирали. Обратный порядок означал бы, что «flh»
+        // сперва починится в «адр», а раскроется только со следующего раза.
+        //
+        // Мягкий режим сниппетам не помеха: он про осторожность в исправлении раскладки, а
+        // раскрытие сокращения человек завёл сам и ждёт его везде, кроме полностью выключенных
+        // программ (их отсекли выше).
+        var expansion = _snippets.Expansion(item.Word);
+        if (expansion is not null)
+        {
+            ExpandSnippet(item, expansion);
+            return;
+        }
+
         // Слово, которое человек только что поправил сам, автоматика не трогает.
         if (_protectedWords.Contains(item.Word))
         {
@@ -220,6 +238,28 @@ internal sealed class LayoutEngine
         }
 
         Apply(item, converted, decision.ToCyrillic, completedOnly: true, reason: "авто");
+    }
+
+    /// <summary>
+    /// Раскрыть сокращение: стереть триггер вместе с хвостом и напечатать раскрытие с тем же
+    /// хвостом. Клавишу-разделитель мы не глотаем — она уже дошла до приложения, и мы просто
+    /// перепечатываем её сами в том же атомарном пакете.
+    /// </summary>
+    private void ExpandSnippet(ConversionTarget item, string expansion)
+    {
+        if (!TextInjector.ReplaceText(item.DeleteCount, expansion + item.Tail))
+        {
+            Log.Write("сниппет: система не приняла пакет — оставляю как набрано");
+            return;
+        }
+
+        _buffer.ApplyCompletedConversion(expansion);
+
+        // Длина на экране изменилась не один к одному, поэтому история слов сессии больше не
+        // описывает экран — групповые операции по ней печатали бы вслепую.
+        _buffer.InvalidateGroupHistory();
+
+        Log.Write($"сниппет: {item.Word.Length} → {expansion.Length} симв.");
     }
 
     private void Apply(

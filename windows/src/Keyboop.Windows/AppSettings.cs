@@ -77,6 +77,12 @@ public sealed class AppSettings
         AutoEnter = AutoEnter,
     };
 
+    /// <summary>Файл сокращений автозамены — рядом с настройками.</summary>
+    public static string SnippetsPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Keyboop",
+        "snippets.json");
+
     /// <summary>Файл со списками исключений — рядом с настройками.</summary>
     public static string ExceptionsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

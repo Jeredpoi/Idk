@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Keyboop.Core.Layout;
+using Keyboop.Core.Snippets;
 using Keyboop.Windows.Diagnostics;
 using Keyboop.Windows.Interop;
 using Keyboop.Windows.Speech;
@@ -26,6 +27,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly LayoutEngine _layout;
     private readonly ExceptionStore _exceptions;
     private readonly ForegroundApp _foreground;
+    private readonly SnippetStore _snippets;
     private readonly TrayIcons _icons = new();
     private readonly System.Windows.Forms.Timer _layoutTimer = new();
     private VoiceState _state = VoiceState.Idle;
@@ -40,7 +42,8 @@ internal sealed class TrayApp : ApplicationContext
         // поэтому читаются один раз лениво — первым обращением к LayoutData.Shared.
         _exceptions = new ExceptionStore(AppSettings.ExceptionsPath);
         _foreground = new ForegroundApp(_exceptions);
-        _layout = new LayoutEngine(LayoutData.Shared, _exceptions, _foreground)
+        _snippets = new SnippetStore(AppSettings.SnippetsPath);
+        _layout = new LayoutEngine(LayoutData.Shared, _exceptions, _foreground, _snippets)
         {
             AutoEnabled = _settings.LayoutAutoFix,
         };
@@ -250,7 +253,8 @@ internal sealed class TrayApp : ApplicationContext
 
     private void OpenSettings()
     {
-        using var form = new SettingsForm(_settings, _exceptions, paused => _hook.RecordingMode = paused);
+        using var form = new SettingsForm(
+            _settings, _exceptions, _snippets, paused => _hook.RecordingMode = paused);
         form.Applied += ApplySettings;
         form.ShowDialog();
     }
