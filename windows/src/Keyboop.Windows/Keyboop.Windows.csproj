@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!--
+      Позволяет собирать Windows-таргет на не-Windows машине (CI на Linux, проверка компиляции).
+      Запускать приложение всё равно можно только под Windows — оно завязано на user32/WASAPI.
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Захват микрофона через WASAPI. -->
+    <PackageReference Include="NAudio" Version="2.3.0" />
+
+    <!--
+      Whisper.net — обёртка над тем же whisper.cpp, что стоит в macOS-версии, поэтому распознавание
+      и пунктуация ведут себя одинаково. Runtime-пакет несёт нативные библиотеки под CPU.
+      Для видеокарты добавьте Whisper.net.Runtime.Cuda или .Vulkan — код менять не нужно.
+    -->
+    <PackageReference Include="Whisper.net" Version="1.9.1" />
+    <PackageReference Include="Whisper.net.Runtime" Version="1.9.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Keyboop.Core/Keyboop.Core.csproj" />
+  </ItemGroup>
+
+</Project>

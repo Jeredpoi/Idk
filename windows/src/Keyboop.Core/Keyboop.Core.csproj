@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Ядро намеренно НЕ зависит ни от Windows, ни от Whisper.net.
+    Здесь живёт всё, что можно проверить тестом на любой машине: затравка на пунктуацию,
+    профиль декодирования, фильтр фраз-призраков, оформление вывода и работа с аудио.
+    Позже сюда же переедет детектор раскладки из macOS-версии — он тоже чистая логика.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- CS1591 — «нет XML-комментария у публичного члена». Комментируем по смыслу, а не для галочки. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>

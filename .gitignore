@@ -6,3 +6,8 @@ Keyboop.app/
 # Punto-копии для reverse-engineering — не коммитим бинарь
 research/punto-switcher/PuntoSwitcher.app/
 PuntoS files/
+
+# --- Windows-порт (.NET) ---
+bin/
+obj/
+*.user
