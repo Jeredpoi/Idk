@@ -3,6 +3,7 @@ using Keyboop.Core.Layout;
 using Keyboop.Windows.Diagnostics;
 using Keyboop.Windows.Interop;
 using Keyboop.Windows.Speech;
+using Keyboop.Windows.Ui;
 
 namespace Keyboop.Windows;
 
@@ -25,6 +26,10 @@ internal sealed class TrayApp : ApplicationContext
     private readonly LayoutEngine _layout;
     private readonly ExceptionStore _exceptions;
     private readonly ForegroundApp _foreground;
+    private readonly TrayIcons _icons = new();
+    private readonly System.Windows.Forms.Timer _layoutTimer = new();
+    private VoiceState _state = VoiceState.Idle;
+    private string _shownLayout = string.Empty;
 
     internal TrayApp()
     {
@@ -43,11 +48,18 @@ internal sealed class TrayApp : ApplicationContext
 
         _tray = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _icons.Layout("EN"),
             Visible = true,
-            Text = "Keyboop — диктовка",
+            Text = "Keyboop",
             ContextMenuStrip = BuildMenu(),
         };
+
+        // Опрос раскладки раз в секунду. Дёшево (два вызова user32), зато значок отвечает на
+        // вопрос «работает ли оно вообще» без заглядывания в лог. Событие о смене раскладки
+        // приходит только окну переднего плана, а мы фоновые — подписаться на него нельзя.
+        _layoutTimer.Interval = 1000;
+        _layoutTimer.Tick += (_, _) => RefreshLayoutIcon();
+        _layoutTimer.Start();
 
         _voice.StateChanged += OnStateChanged;
         _voice.Notice += OnNotice;
@@ -110,6 +122,8 @@ internal sealed class TrayApp : ApplicationContext
     {
         var menu = new ContextMenuStrip();
 
+        menu.Items.Add("Настройки…", null, (_, _) => OpenSettings());
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Выбрать модель…", null, (_, _) => ChooseModel());
 
         var language = new ToolStripMenuItem("Язык");
@@ -173,6 +187,7 @@ internal sealed class TrayApp : ApplicationContext
         if (paused)
         {
             _hook.Uninstall();
+            _tray.Icon = _icons.Paused;
             _tray.Text = "Keyboop — приостановлен";
             return;
         }
@@ -180,7 +195,8 @@ internal sealed class TrayApp : ApplicationContext
         try
         {
             _hook.Install();
-            _tray.Text = "Keyboop — диктовка";
+            _shownLayout = string.Empty;
+            RefreshLayoutIcon();
         }
         catch (InvalidOperationException ex)
         {
@@ -232,6 +248,60 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
+    private void OpenSettings()
+    {
+        using var form = new SettingsForm(_settings, _exceptions, paused => _hook.RecordingMode = paused);
+        form.Applied += ApplySettings;
+        form.ShowDialog();
+    }
+
+    /// <summary>
+    /// Применить настройки без перезапуска. Хоткеи перевешиваем целиком, кэш активной программы
+    /// сбрасываем: человек мог поменять списки исключений, не переключая окон.
+    /// </summary>
+    private void ApplySettings()
+    {
+        _hook.Dictation = new HotkeyBinding
+        {
+            VirtualKey = _settings.HotkeyVirtualKey,
+            Modifiers = _settings.HotkeyModifiers,
+        };
+        _hook.LayoutConvert = new HotkeyBinding
+        {
+            VirtualKey = _settings.LayoutHotkeyVirtualKey,
+            Modifiers = _settings.LayoutHotkeyModifiers,
+        };
+        _hook.Mode = _settings.Mode;
+        _layout.AutoEnabled = _settings.LayoutAutoFix;
+        _foreground.Invalidate();
+
+        if (!string.IsNullOrWhiteSpace(_settings.ModelPath))
+        {
+            LoadModelIfConfigured();
+        }
+
+        Log.Write("настройки: применены без перезапуска");
+    }
+
+    /// <summary>Значок показывает текущий язык — но только когда мы не заняты чем-то важнее.</summary>
+    private void RefreshLayoutIcon()
+    {
+        if (_state != VoiceState.Idle || !_hook.IsInstalled)
+        {
+            return;
+        }
+
+        var code = KeyboardLayoutSwitcher.ForegroundIsCyrillic() ? "RU" : "EN";
+        if (code == _shownLayout)
+        {
+            return;
+        }
+
+        _shownLayout = code;
+        _tray.Icon = _icons.Layout(code);
+        _tray.Text = $"Keyboop — {code}";
+    }
+
     private static void OpenLog()
     {
         try
@@ -252,19 +322,25 @@ internal sealed class TrayApp : ApplicationContext
     {
         _ui.Post(_ =>
         {
-            _tray.Icon = state switch
-            {
-                VoiceState.Recording => SystemIcons.Exclamation,
-                VoiceState.Processing => SystemIcons.Information,
-                _ => SystemIcons.Application,
-            };
+            _state = state;
 
-            _tray.Text = state switch
+            switch (state)
             {
-                VoiceState.Recording => "Keyboop — идёт запись",
-                VoiceState.Processing => "Keyboop — распознаю",
-                _ => "Keyboop — диктовка",
-            };
+                case VoiceState.Recording:
+                    _tray.Icon = _icons.Listening;
+                    _tray.Text = "Keyboop — идёт запись";
+                    break;
+
+                case VoiceState.Processing:
+                    _tray.Icon = _icons.Processing;
+                    _tray.Text = "Keyboop — распознаю";
+                    break;
+
+                default:
+                    _shownLayout = string.Empty;   // заставить перерисовать значок языка
+                    RefreshLayoutIcon();
+                    break;
+            }
         }, null);
     }
 
@@ -281,8 +357,11 @@ internal sealed class TrayApp : ApplicationContext
     {
         if (disposing)
         {
+            _layoutTimer.Stop();
+            _layoutTimer.Dispose();
             _hook.Dispose();
             _voice.Dispose();
+            _icons.Dispose();
             _engine.Dispose();
             _tray.Visible = false;
             _tray.Dispose();

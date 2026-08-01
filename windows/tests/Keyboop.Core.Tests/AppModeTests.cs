@@ -125,3 +125,67 @@ public class SoftModeFilterTests
         Assert.False(SoftModeFilter.ShouldSkip("ghbdtn."));
     }
 }
+
+/// <summary>Массовая правка списков из окна настроек.</summary>
+public class ExceptionStoreEditingTests
+{
+    private static ExceptionStore Fresh() =>
+        new(Path.Combine(Path.GetTempPath(), $"keyboop-test-{Guid.NewGuid():N}.json"),
+            new ExceptionData());
+
+    [Fact]
+    public void ReplacesIgnoredWordsAndNormalisesThem()
+    {
+        var store = Fresh();
+        store.ReplaceIgnored(["  ВК  ", "тг", "", "   "]);
+
+        Assert.Equal(2, store.Ignored.Count);
+        Assert.Contains("вк", store.Ignored);
+        Assert.Contains("тг", store.Ignored);
+    }
+
+    [Fact]
+    public void ReplaceIgnoredDropsWhatIsNoLongerListed()
+    {
+        var store = Fresh();
+        store.ReplaceIgnored(["первое", "второе"]);
+        store.ReplaceIgnored(["первое"]);
+
+        Assert.Single(store.Ignored);
+        Assert.DoesNotContain("второе", store.Ignored);
+    }
+
+    [Theory]
+    [InlineData("code.exe=soft", "code.exe", "soft")]
+    [InlineData("  Resolve.exe = off ", "Resolve.exe", "off")]
+    public void ParsesAppModeLines(string line, string app, string mode)
+    {
+        var store = Fresh();
+        store.ReplaceAppModes([line]);
+        Assert.Equal(mode, store.AppMode(app));
+    }
+
+    /// <summary>
+    /// Опечатка в режиме не должна тихо выключать программу там, где человек этого не просил.
+    /// Поэтому неизвестный режим пропускаем, а не считаем за «off».
+    /// </summary>
+    [Theory]
+    [InlineData("code.exe=offf")]
+    [InlineData("code.exe=выкл")]
+    [InlineData("code.exe")]
+    [InlineData("=off")]
+    public void IgnoresMalformedAppModeLines(string line)
+    {
+        var store = Fresh();
+        store.ReplaceAppModes([line]);
+        Assert.Empty(store.AppModePairs());
+    }
+
+    [Fact]
+    public void AppModeLookupIgnoresCase()
+    {
+        var store = Fresh();
+        store.ReplaceAppModes(["Code.exe=soft"]);
+        Assert.Equal("soft", store.AppMode("code.EXE"));
+    }
+}

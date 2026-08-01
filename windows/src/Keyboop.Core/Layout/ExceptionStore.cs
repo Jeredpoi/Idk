@@ -121,6 +121,57 @@ public sealed class ExceptionStore : IExceptionStore
         Save();
     }
 
+    /// <summary>Пары «программа → режим» для показа в настройках.</summary>
+    public IReadOnlyDictionary<string, string> AppModePairs() => _appModes;
+
+    /// <summary>
+    /// Заменить список «не переключать» целиком — из текстового поля настроек.
+    /// Пустые строки и пробелы по краям отбрасываем: человек их набирает случайно.
+    /// </summary>
+    public void ReplaceIgnored(IEnumerable<string> words)
+    {
+        _ignored.Clear();
+        foreach (var word in words)
+        {
+            var w = word.Trim().ToLowerInvariant();
+            if (w.Length > 0)
+            {
+                _ignored.Add(w);
+            }
+        }
+
+        Save();
+    }
+
+    /// <summary>
+    /// Заменить список программ-исключений. Формат строки: «имя.exe=off» либо «имя.exe=soft».
+    ///
+    /// Строку с неизвестным режимом молча пропускаем, а не считаем за «off»: опечатка в режиме
+    /// не должна тихо выключать программу там, где человек этого не просил.
+    /// </summary>
+    public void ReplaceAppModes(IEnumerable<string> lines)
+    {
+        _appModes.Clear();
+        foreach (var line in lines)
+        {
+            var parts = line.Split('=', 2);
+            if (parts.Length != 2)
+            {
+                continue;
+            }
+
+            var app = parts[0].Trim();
+            var mode = parts[1].Trim().ToLowerInvariant();
+
+            if (app.Length > 0 && (mode == AppMode.Off || mode == AppMode.Soft))
+            {
+                _appModes[app] = mode;
+            }
+        }
+
+        Save();
+    }
+
     public void Save()
     {
         var data = new ExceptionData
