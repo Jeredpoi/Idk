@@ -41,20 +41,20 @@ internal sealed class LayoutEngine
     private readonly ForegroundApp _foreground;
     private readonly SnippetStore _snippets;
 
-    /// <summary>
-    /// Слова, которые человек только что поправил вручную. Автоматика их не трогает до смены
-    /// контекста — иначе выходит драка: он переключает слово хоткеем, а следующий же пробел
-    /// возвращает всё обратно, и так по кругу.
-    /// </summary>
-    private readonly HashSet<string> _protectedWords = new(StringComparer.OrdinalIgnoreCase);
+    private readonly UndoLearner _undo;
 
     internal LayoutEngine(
-        LayoutData data, IExceptionStore exceptions, ForegroundApp foreground, SnippetStore snippets)
+        LayoutData data,
+        IExceptionStore exceptions,
+        ForegroundApp foreground,
+        SnippetStore snippets,
+        UndoLearner undo)
     {
         _data = data;
         _exceptions = exceptions;
         _foreground = foreground;
         _snippets = snippets;
+        _undo = undo;
         _antiResonance.Logger = Log.Write;
     }
 
@@ -81,6 +81,7 @@ internal sealed class LayoutEngine
         {
             case VK_BACK:
                 _buffer.Backspace();
+                _undo.Observe(_buffer.CurrentWord);
                 return;
 
             case VK_SPACE:
@@ -103,6 +104,9 @@ internal sealed class LayoutEngine
         if (KeyDecoder.IsPrintable(chars))
         {
             _buffer.Append(chars);
+
+            // Стирание нашего вывода и перенабор оригинала — один из двух честных жестов отмены.
+            _undo.Observe(_buffer.CurrentWord);
         }
     }
 
@@ -110,7 +114,7 @@ internal sealed class LayoutEngine
     internal void ResetContext()
     {
         _buffer.Clear();
-        _protectedWords.Clear();
+        _undo.ResetContext();
         _antiResonance.ResetHistory();
     }
 
@@ -151,8 +155,11 @@ internal sealed class LayoutEngine
         // Гейт по режиму существует ради АВТОМАТИКИ, которая срабатывает без спроса.
         Apply(item, converted, toCyrillic, completedOnly: false, reason: "хоткей");
 
+        // Ре-флип, точно отменяющий нашу недавнюю правку, — это и есть жест «не надо так».
+        _undo.NoteManualConvert(item.Word, converted);
+
         // Результат ручной правки защищаем: следующий пробел не должен вернуть всё назад.
-        _protectedWords.Add(converted);
+        _undo.Protect(converted);
     }
 
     private void HandleBoundary(uint virtualKey)
@@ -204,8 +211,9 @@ internal sealed class LayoutEngine
             return;
         }
 
-        // Слово, которое человек только что поправил сам, автоматика не трогает.
-        if (_protectedWords.Contains(item.Word))
+        // Слово, которое человек только что поправил сам или прямо сейчас восстанавливает,
+        // автоматика не трогает: спорить с ним посреди правки — худшее, что можно сделать.
+        if (_undo.IsProtected(item.Word) || _undo.ShouldSuppress(item.Word))
         {
             return;
         }
@@ -246,6 +254,8 @@ internal sealed class LayoutEngine
             return;
         }
 
+        // Кандидат на откат: если человек сейчас вернёт слово обратно, мы это засчитаем.
+        _undo.NoteConversion(item.Word, converted);
         Apply(item, converted, decision.ToCyrillic, completedOnly: true, reason: "авто");
     }
 
@@ -316,7 +326,7 @@ internal sealed class LayoutEngine
         }
 
         _buffer.Clear();
-        _protectedWords.Clear();
+        _undo.ResetContext();
         KeyboardLayoutSwitcher.Switch(lastToCyrillic);
 
         Log.Write($"группа: починено {converted} из {g.Words.Count} слов, "

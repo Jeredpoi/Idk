@@ -28,6 +28,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly ExceptionStore _exceptions;
     private readonly ForegroundApp _foreground;
     private readonly SnippetStore _snippets;
+    private readonly UndoLearner _undo;
     private readonly TrayIcons _icons = new();
     private readonly System.Windows.Forms.Timer _layoutTimer = new();
     private VoiceState _state = VoiceState.Idle;
@@ -43,7 +44,8 @@ internal sealed class TrayApp : ApplicationContext
         _exceptions = new ExceptionStore(AppSettings.ExceptionsPath);
         _foreground = new ForegroundApp(_exceptions);
         _snippets = new SnippetStore(AppSettings.SnippetsPath);
-        _layout = new LayoutEngine(LayoutData.Shared, _exceptions, _foreground, _snippets)
+        _undo = new UndoLearner(AppSettings.UndoLearnPath, _exceptions);
+        _layout = new LayoutEngine(LayoutData.Shared, _exceptions, _foreground, _snippets, _undo)
         {
             AutoEnabled = _settings.LayoutAutoFix,
         };
@@ -63,6 +65,10 @@ internal sealed class TrayApp : ApplicationContext
         _layoutTimer.Interval = 1000;
         _layoutTimer.Tick += (_, _) => RefreshLayoutIcon();
         _layoutTimer.Start();
+
+        // О выученном слове говорим: решение обратимо, и человек должен знать, что оно принято.
+        _undo.Learned += word => _ui.Post(
+            _ => ShowBalloon($"Больше не переключаю «{word}». Убрать можно в настройках."), null);
 
         _voice.StateChanged += OnStateChanged;
         _voice.Notice += OnNotice;

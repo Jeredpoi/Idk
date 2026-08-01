@@ -77,6 +77,12 @@ public sealed class AppSettings
         AutoEnter = AutoEnter,
     };
 
+    /// <summary>Счётчики откатов для обучения на отмене.</summary>
+    public static string UndoLearnPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Keyboop",
+        "undo-learn.json");
+
     /// <summary>Файл сокращений автозамены — рядом с настройками.</summary>
     public static string SnippetsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
