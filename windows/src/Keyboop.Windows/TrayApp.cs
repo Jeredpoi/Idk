@@ -19,7 +19,7 @@ internal sealed class TrayApp : ApplicationContext
     private readonly AppSettings _settings;
     private readonly WhisperSpeechEngine _engine = new();
     private readonly VoiceController _voice;
-    private readonly PushToTalkHook _hook = new();
+    private readonly KeyboardHook _hook = new();
     private readonly NotifyIcon _tray;
     private readonly SynchronizationContext _ui;
     private readonly LayoutEngine _layout;
@@ -50,13 +50,22 @@ internal sealed class TrayApp : ApplicationContext
         _voice.StateChanged += OnStateChanged;
         _voice.Notice += OnNotice;
 
-        _hook.VirtualKey = _settings.HotkeyVirtualKey;
-        _hook.Modifiers = _settings.HotkeyModifiers;
+        _hook.Dictation = new HotkeyBinding
+        {
+            VirtualKey = _settings.HotkeyVirtualKey,
+            Modifiers = _settings.HotkeyModifiers,
+        };
+        _hook.LayoutConvert = new HotkeyBinding
+        {
+            VirtualKey = _settings.LayoutHotkeyVirtualKey,
+            Modifiers = _settings.LayoutHotkeyModifiers,
+        };
         _hook.Mode = _settings.Mode;
         _hook.IsRecording = () => _voice.IsRecording;
         _hook.DictationStarted += () => _voice.Begin();
         _hook.DictationStopped += () => _voice.End();
         _hook.DictationCancelled += () => _voice.Cancel();
+        _hook.LayoutConvertRequested += () => _layout.ConvertManually();
         _hook.KeyObserved = _layout.OnKeyDown;
 
         LoadModelIfConfigured();

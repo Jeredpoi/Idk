@@ -48,6 +48,20 @@ public sealed class AppSettings
     /// <summary>Исправлять раскладку набранного автоматически на границе слова.</summary>
     public bool LayoutAutoFix { get; set; } = true;
 
+    /// <summary>
+    /// Клавиша ручного переключения последнего слова. По умолчанию Pause — так же, как в
+    /// Punto Switcher, к которому привыкло большинство.
+    ///
+    /// ⚠️ Голая клавиша здесь допустима ровно потому, что Pause ничего не печатает и её штатное
+    /// действие давно ничего не значит. Вешать сюда печатающую клавишу нельзя: мы глотаем нажатие
+    /// целиком, и человек останется без этого символа во всех программах.
+    /// На ноутбуках без Pause клавишу надо переназначить — например, на F8.
+    /// </summary>
+    public int LayoutHotkeyVirtualKey { get; set; } = 0x13;
+
+    /// <summary>Модификаторы для хоткея переключения. Пусто — голая клавиша.</summary>
+    public List<int> LayoutHotkeyModifiers { get; set; } = [];
+
     [JsonIgnore]
     public HotkeyMode Mode =>
         string.Equals(HotkeyModeName, "toggle", StringComparison.OrdinalIgnoreCase)
