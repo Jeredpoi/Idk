@@ -1,0 +1,92 @@
+name: Сборка и тесты Windows-порта
+
+# Гоняем на каждый пуш и на каждый пул-реквест, плюс кнопка «запустить вручную».
+# Пути ограничены папкой порта: правки в macOS-исходниках (Swift) сборку .NET не затрагивают,
+# и гонять её на них — впустую жечь минуты раннера. Сам workflow тоже в списке: иначе правку
+# в нём самом нельзя было бы проверить.
+on:
+  push:
+    paths:
+      - 'windows/**'
+      - 'Sources/Keyboop/Resources/**'
+      - '.github/workflows/windows-build.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+      - 'Sources/Keyboop/Resources/**'
+      - '.github/workflows/windows-build.yml'
+  workflow_dispatch:
+
+jobs:
+  # ── Ядро: логика без единого вызова Windows, поэтому проверяется на Linux ────────────────
+  # Раннер Linux быстрее и дешевле windows-раннера, а весь детектор раскладки и вся обработка
+  # расшифровки лежат именно здесь. Если этот job красный — дальше можно не смотреть.
+  core:
+    name: Ядро и тесты (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Поставить .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Собрать ядро
+        run: dotnet build windows/src/Keyboop.Core/Keyboop.Core.csproj -c Release
+
+      - name: Прогнать тесты
+        # Тесты детектора читают настоящие словари и триграммы, которые csproj подкладывает
+        # в папку data рядом с собранными тестами. Если данных не будет, тест
+        # LanguageDataIsPresent покажет это первым и явно, а не через десяток непонятных падений.
+        run: >
+          dotnet test windows/tests/Keyboop.Core.Tests/Keyboop.Core.Tests.csproj
+          -c Release
+          --logger "trx;LogFileName=core-tests.trx"
+          --results-directory artifacts/tests
+
+      - name: Сохранить отчёт о тестах
+        # if: always() — отчёт нужен ИМЕННО когда тесты упали. Без этого условия шаг
+        # пропускается на красной сборке, то есть ровно тогда, когда он и был нужен.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: отчёт-тестов
+          path: artifacts/tests
+          if-no-files-found: ignore
+
+  # ── Приложение целиком: WinForms, WASAPI и P/Invoke собираются только под Windows ────────
+  app:
+    name: Приложение (Windows)
+    runs-on: windows-latest
+    needs: core   # нет смысла занимать дорогой раннер, если ядро уже не собралось
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Поставить .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Восстановить зависимости
+        run: dotnet restore windows/Keyboop.sln
+
+      - name: Собрать решение
+        run: dotnet build windows/Keyboop.sln -c Release --no-restore
+
+      - name: Собрать готовое приложение
+        # Самодостаточная сборка под x64: человек скачивает её и запускает, не устанавливая
+        # .NET. Нативные библиотеки whisper.cpp приезжают из пакета Whisper.net.Runtime.
+        run: >
+          dotnet publish windows/src/Keyboop.Windows/Keyboop.Windows.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=false
+          -o artifacts/keyboop-win
+
+      - name: Выложить сборку
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyboop-windows
+          path: artifacts/keyboop-win
