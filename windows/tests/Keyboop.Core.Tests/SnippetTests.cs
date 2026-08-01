@@ -62,7 +62,9 @@ public class SnippetStoreTests
     [Fact]
     public void StripsControlCharactersButKeepsLineBreaksAndTabs()
     {
-        var store = Make(("подпись", "ИванПетров\nОтдел\tпродаж"));
+        // \u0007 — звонок терминала. В раскрытии ему делать нечего, а через синтетический
+        // ввод он мог бы быть истолкован приложением как команда.
+        var store = Make(("подпись", "Иван\u0007Петров\nОтдел\tпродаж"));
         Assert.Equal("ИванПетров\nОтдел\tпродаж", store.Expansion("подпись"));
     }
 
