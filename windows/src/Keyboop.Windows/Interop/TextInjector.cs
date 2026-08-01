@@ -82,6 +82,57 @@ internal static class TextInjector
         return sent > 0;
     }
 
+    /// <summary>
+    /// Стереть <paramref name="deleteCount"/> символов перед кареткой и напечатать
+    /// <paramref name="text"/> — это и есть исправление раскладки уже набранного слова.
+    ///
+    /// ⚠️ ВСЁ УХОДИТ ОДНИМ ПАКЕТОМ, И ЭТО ГЛАВНОЕ СВОЙСТВО МЕТОДА. SendInput вставляет события
+    /// в очередь атомарно относительно другого ввода: реальное нажатие человека физически не может
+    /// лечь МЕЖДУ нашими Backspace'ами и перепечаткой. В macOS-версии ровно эта гонка рождала
+    /// «GПривет» и «EУстрйство» — буква, нажатая в момент замены, оказывалась внутри неё и
+    /// съедалась следующим Backspace'ом. Здесь такого класса ошибок нет по построению.
+    ///
+    /// Поэтому пакет НЕЛЬЗЯ дробить: разбиение на несколько SendInput вернёт гонку обратно.
+    /// </summary>
+    internal static bool ReplaceText(int deleteCount, string text)
+    {
+        if (deleteCount < 0)
+        {
+            return false;
+        }
+
+        if (deleteCount == 0 && string.IsNullOrEmpty(text))
+        {
+            return true;
+        }
+
+        const ushort VK_BACK = 0x08;
+        var inputs = new List<NativeMethods.INPUT>((deleteCount * 2) + (text.Length * 2));
+
+        for (var i = 0; i < deleteCount; i++)
+        {
+            inputs.Add(VirtualKeyInput(VK_BACK, keyUp: false));
+            inputs.Add(VirtualKeyInput(VK_BACK, keyUp: true));
+        }
+
+        foreach (var unit in text)
+        {
+            inputs.Add(KeyboardInput(unit, keyUp: false));
+            inputs.Add(KeyboardInput(unit, keyUp: true));
+        }
+
+        var expected = inputs.Count;
+        var sent = Flush(inputs);
+
+        if (sent != expected)
+        {
+            Log.Write($"замена: SendInput принял {sent} из {expected} событий "
+                      + $"(ошибка {Marshal.GetLastWin32Error()})");
+        }
+
+        return sent == expected;
+    }
+
     /// <summary>Отправить нажатие обычной клавиши по виртуальному коду (например, Enter).</summary>
     internal static bool PressKey(ushort virtualKey)
     {

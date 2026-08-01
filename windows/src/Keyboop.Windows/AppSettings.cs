@@ -45,6 +45,9 @@ public sealed class AppSettings
     /// <summary>Отправлять Enter сразу после вставки (для чатов).</summary>
     public bool AutoEnter { get; set; }
 
+    /// <summary>Исправлять раскладку набранного автоматически на границе слова.</summary>
+    public bool LayoutAutoFix { get; set; } = true;
+
     [JsonIgnore]
     public HotkeyMode Mode =>
         string.Equals(HotkeyModeName, "toggle", StringComparison.OrdinalIgnoreCase)
@@ -59,6 +62,12 @@ public sealed class AppSettings
         TrailingSpace = TrailingSpace,
         AutoEnter = AutoEnter,
     };
+
+    /// <summary>Файл со списками исключений — рядом с настройками.</summary>
+    public static string ExceptionsPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Keyboop",
+        "exceptions.json");
 
     private static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Keyboop.Core.Layout;
 using Keyboop.Windows.Diagnostics;
 using Keyboop.Windows.Interop;
 using Keyboop.Windows.Speech;
@@ -21,11 +22,21 @@ internal sealed class TrayApp : ApplicationContext
     private readonly PushToTalkHook _hook = new();
     private readonly NotifyIcon _tray;
     private readonly SynchronizationContext _ui;
+    private readonly LayoutEngine _layout;
+    private readonly ExceptionStore _exceptions;
 
     internal TrayApp()
     {
         _settings = AppSettings.Load();
         _voice = new VoiceController(_settings, _engine);
+
+        // Языковые данные лежат в папке data рядом с приложением и весят около пяти мегабайт,
+        // поэтому читаются один раз лениво — первым обращением к LayoutData.Shared.
+        _exceptions = new ExceptionStore(AppSettings.ExceptionsPath);
+        _layout = new LayoutEngine(LayoutData.Shared, _exceptions)
+        {
+            AutoEnabled = _settings.LayoutAutoFix,
+        };
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
         _tray = new NotifyIcon
@@ -46,6 +57,7 @@ internal sealed class TrayApp : ApplicationContext
         _hook.DictationStarted += () => _voice.Begin();
         _hook.DictationStopped += () => _voice.End();
         _hook.DictationCancelled += () => _voice.Cancel();
+        _hook.KeyObserved = _layout.OnKeyDown;
 
         LoadModelIfConfigured();
 
@@ -117,6 +129,13 @@ internal sealed class TrayApp : ApplicationContext
             v => _settings.TrailingSpace = v));
         menu.Items.Add(Toggle("Отправлять Enter после текста", _settings.AutoEnter,
             v => _settings.AutoEnter = v));
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(Toggle("Исправлять раскладку автоматически", _settings.LayoutAutoFix,
+            v =>
+            {
+                _settings.LayoutAutoFix = v;
+                _layout.AutoEnabled = v;
+            }));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Показать лог", null, (_, _) => OpenLog());
         menu.Items.Add("Выход", null, (_, _) => ExitThread());

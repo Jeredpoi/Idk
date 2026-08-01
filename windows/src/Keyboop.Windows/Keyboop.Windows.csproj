@@ -33,4 +33,14 @@
     <ProjectReference Include="../Keyboop.Core/Keyboop.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    Языковые данные (триграммы и словари) берём НАПРЯМУЮ из macOS-версии — формат тот же,
+    конвертация не нужна, и копия в репозитории не заводится. Пять мегабайт, читаются лениво.
+  -->
+  <ItemGroup>
+    <Content Include="../../../Sources/Keyboop/Resources/*.json"
+             Link="data/%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

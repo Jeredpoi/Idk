@@ -60,6 +60,14 @@ internal sealed class PushToTalkHook : IDisposable
     /// <summary>Идёт ли запись прямо сейчас — источник истины держит VoiceController.</summary>
     internal Func<bool> IsRecording { get; set; } = () => false;
 
+    /// <summary>
+    /// Каждое НЕ относящееся к хоткею нажатие — сюда. На этом живёт исправление раскладки.
+    ///
+    /// ⚠️ Обработчик выполняется прямо в колбэке хука, то есть в том же жёстком лимите времени.
+    /// Внутри допустимы только дешёвые вызовы user32 и работа с памятью.
+    /// </summary>
+    internal Action<uint, uint>? KeyObserved;
+
     internal void Install()
     {
         if (_hook != IntPtr.Zero)
@@ -104,6 +112,21 @@ internal sealed class PushToTalkHook : IDisposable
         if (Swallow(data, isDown, isUp))
         {
             return new IntPtr(1);   // проглочено: в приложение не уйдёт
+        }
+
+        // Обычное нажатие — отдаём наблюдателю (исправление раскладки). Ошибку здесь глушим
+        // намеренно: сбой в разборе слова не должен ронять перехватчик, иначе человек разом
+        // теряет и хоткей диктовки, и весь ввод.
+        if (isDown && KeyObserved is not null)
+        {
+            try
+            {
+                KeyObserved(data.vkCode, data.scanCode);
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"хук: наблюдатель нажатий упал — {ex.GetType().Name}: {ex.Message}");
+            }
         }
 
         return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
