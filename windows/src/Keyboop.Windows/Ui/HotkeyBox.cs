@@ -1,3 +1,5 @@
+using Keyboop.Core;
+
 namespace Keyboop.Windows.Ui;
 
 /// <summary>
@@ -18,7 +20,7 @@ internal sealed class HotkeyBox : TextBox
         ReadOnly = true;
         Cursor = Cursors.Hand;
         TextAlign = HorizontalAlignment.Center;
-        Text = "нажмите сочетание";
+        Text = L10n.T("hotkey.press");
     }
 
     /// <summary>Виртуальный код выбранной клавиши. Ноль — не назначено.</summary>
@@ -44,7 +46,7 @@ internal sealed class HotkeyBox : TextBox
     {
         base.OnGotFocus(e);
         SetRecordingMode?.Invoke(true);
-        Text = "жду нажатия…";
+        Text = L10n.T("hotkey.waiting");
     }
 
     protected override void OnLostFocus(EventArgs e)
@@ -105,7 +107,7 @@ internal sealed class HotkeyBox : TextBox
     {
         if (VirtualKey == 0)
         {
-            return "не назначено";
+            return L10n.T("hotkey.unassigned");
         }
 
         var parts = new List<string>();

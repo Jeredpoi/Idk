@@ -1,3 +1,4 @@
+using Keyboop.Core;
 using Keyboop.Core.Speech;
 
 namespace Keyboop.Windows.Ui;
@@ -17,7 +18,7 @@ internal sealed class HistoryForm : Form
     {
         _history = history;
 
-        Text = "Keyboop — история диктовок";
+        Text = L10n.T("history.title");
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(560, 420);
         MinimizeBox = false;
@@ -35,14 +36,14 @@ internal sealed class HistoryForm : Form
             Width = 380,
             Height = 34,
             ForeColor = SystemColors.GrayText,
-            Text = "Двойной щелчок — скопировать. Записи хранятся час и стираются сами.",
+            Text = L10n.T("history.hint"),
             Anchor = AnchorStyles.Bottom | AnchorStyles.Left,
         };
         Controls.Add(hint);
 
         var copy = new Button
         {
-            Text = "Копировать",
+            Text = L10n.T("history.copy"),
             Left = 340,
             Top = 386,
             Width = 100,
@@ -53,7 +54,7 @@ internal sealed class HistoryForm : Form
 
         var clear = new Button
         {
-            Text = "Очистить",
+            Text = L10n.T("history.clear"),
             Left = 448,
             Top = 386,
             Width = 100,
@@ -79,7 +80,7 @@ internal sealed class HistoryForm : Form
 
         if (_list.Items.Count == 0)
         {
-            _list.Items.Add("(пусто)");
+            _list.Items.Add(L10n.T("history.empty"));
             _list.Enabled = false;
         }
         else
@@ -108,7 +109,7 @@ internal sealed class HistoryForm : Form
         catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException)
         {
             // Буфер обмена может быть заблокирован другой программой. Это не повод падать.
-            MessageBox.Show(this, "Буфер обмена сейчас занят другой программой. Попробуйте ещё раз.",
+            MessageBox.Show(this, L10n.T("history.clipboardBusy"),
                 "Keyboop", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
@@ -117,7 +118,7 @@ internal sealed class HistoryForm : Form
     {
         var answer = MessageBox.Show(
             this,
-            "Стереть всю историю диктовок?",
+            L10n.T("history.confirmClear"),
             "Keyboop",
             MessageBoxButtons.YesNo,
             MessageBoxIcon.Question);

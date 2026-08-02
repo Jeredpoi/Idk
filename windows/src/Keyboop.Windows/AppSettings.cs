@@ -30,8 +30,16 @@ public sealed class AppSettings
     /// <summary>Путь к файлу модели ggml-*.bin.</summary>
     public string ModelPath { get; set; } = string.Empty;
 
-    /// <summary>«ru», «en» или «auto».</summary>
+    /// <summary>Язык распознавания речи: «ru», «en» или «auto».</summary>
     public string Language { get; set; } = "auto";
+
+    /// <summary>
+    /// Язык интерфейса: «ru», «en» или «auto» (по языку системы).
+    ///
+    /// Сознательно отдельная настройка от языка распознавания: диктовать по-английски и читать
+    /// меню по-русски — обычное сочетание, а не исключение.
+    /// </summary>
+    public string UiLanguage { get; set; } = "auto";
 
     /// <summary>Снимать одиночную точку в конце реплики.</summary>
     public bool DropFinalPeriod { get; set; }

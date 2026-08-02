@@ -1,3 +1,4 @@
+using Keyboop.Core;
 using Keyboop.Core.Audio;
 using Keyboop.Core.Speech;
 using Keyboop.Windows.Audio;
@@ -56,7 +57,7 @@ internal sealed class VoiceController : IDisposable
 
         if (!_engine.IsModelLoaded)
         {
-            Notice?.Invoke("Модель распознавания не выбрана. Откройте настройки и укажите файл модели.");
+            Notice?.Invoke(L10n.T("voice.noModel"));
             return;
         }
 
@@ -71,7 +72,7 @@ internal sealed class VoiceController : IDisposable
         {
             // Микрофон занят эксклюзивно, отключён или запрещён политикой приватности Windows.
             Log.Write($"voice: запись не стартовала — {ex.GetType().Name}: {ex.Message}");
-            Notice?.Invoke("Не удалось начать запись. Проверьте микрофон и разрешение на доступ к нему.");
+            Notice?.Invoke(L10n.T("voice.recordFailed"));
             StateChanged?.Invoke(VoiceState.Idle);
         }
     }
@@ -118,7 +119,7 @@ internal sealed class VoiceController : IDisposable
                 // А вот об этом сказать надо: чаще всего микрофон занят другим приложением, и
                 // человеку важно понимать, что дело не в Keyboop.
                 Log.Write("voice: тишина — распознавание пропущено");
-                Notice?.Invoke("Микрофон молчал. Возможно, он занят другим приложением.");
+                Notice?.Invoke(L10n.T("voice.silence"));
                 StateChanged?.Invoke(VoiceState.Idle);
                 return;
         }
@@ -140,7 +141,7 @@ internal sealed class VoiceController : IDisposable
             if (text.Length == 0)
             {
                 Log.Write("voice: пустой результат — вставлять нечего");
-                Notice?.Invoke("Речь не распознана.");
+                Notice?.Invoke(L10n.T("voice.empty"));
                 return;
             }
 
@@ -154,7 +155,7 @@ internal sealed class VoiceController : IDisposable
             {
                 // Текст распознан, но система его не приняла. Молчать нельзя: для человека это
                 // выглядит как потерянная диктовка.
-                Notice?.Invoke("Не удалось вставить текст. Он сохранён в истории диктовок.");
+                Notice?.Invoke(L10n.T("voice.insertFailed"));
                 return;
             }
 
@@ -167,7 +168,7 @@ internal sealed class VoiceController : IDisposable
         catch (Exception ex)
         {
             Log.Write($"voice: распознавание упало — {ex.GetType().Name}: {ex.Message}");
-            Notice?.Invoke("Распознавание не удалось. Подробности в логе.");
+            Notice?.Invoke(L10n.T("voice.failed"));
         }
         finally
         {

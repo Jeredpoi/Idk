@@ -1,3 +1,4 @@
+using Keyboop.Core;
 using Keyboop.Core.Layout;
 using Keyboop.Core.Snippets;
 
@@ -46,7 +47,7 @@ internal sealed class SettingsForm : Form
         _snippets = snippets;
         _setRecordingMode = setRecordingMode;
 
-        Text = "Keyboop — настройки";
+        Text = L10n.T("settings.title");
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -60,10 +61,10 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.Add(BuildSnippetsTab());
         Controls.Add(tabs);
 
-        var save = new Button { Text = "Сохранить", Left = 320, Top = 392, Width = 90 };
+        var save = new Button { Text = L10n.T("settings.save"), Left = 320, Top = 392, Width = 90 };
         save.Click += (_, _) => Apply();
 
-        var close = new Button { Text = "Закрыть", Left = 418, Top = 392, Width = 90 };
+        var close = new Button { Text = L10n.T("settings.close"), Left = 418, Top = 392, Width = 90 };
         close.Click += (_, _) => Close();
 
         Controls.Add(save);
@@ -76,20 +77,20 @@ internal sealed class SettingsForm : Form
 
     private TabPage BuildHotkeysTab()
     {
-        var page = new TabPage("Хоткеи");
+        var page = new TabPage(L10n.T("tab.hotkeys"));
 
-        page.Controls.Add(Caption("Диктовка", 20));
+        page.Controls.Add(Caption(L10n.T("settings.dictation"), 20));
         _dictationHotkey.SetBounds(200, 17, 280, 24);
         _dictationHotkey.SetRecordingMode = _setRecordingMode;
         page.Controls.Add(_dictationHotkey);
 
-        page.Controls.Add(Caption("Как работает", 56));
+        page.Controls.Add(Caption(L10n.T("settings.mode"), 56));
         _dictationMode.SetBounds(200, 53, 280, 24);
         _dictationMode.DropDownStyle = ComboBoxStyle.DropDownList;
-        _dictationMode.Items.AddRange(new object[] { "Удерживать", "Переключать" });
+        _dictationMode.Items.AddRange(new object[] { L10n.T("mode.hold"), L10n.T("mode.toggle") });
         page.Controls.Add(_dictationMode);
 
-        page.Controls.Add(Caption("Переключить слово", 100));
+        page.Controls.Add(Caption(L10n.T("settings.convertWord"), 100));
         _layoutHotkey.SetBounds(200, 97, 280, 24);
         _layoutHotkey.SetRecordingMode = _setRecordingMode;
         page.Controls.Add(_layoutHotkey);
@@ -101,10 +102,7 @@ internal sealed class SettingsForm : Form
             Width = 460,
             Height = 90,
             ForeColor = SystemColors.GrayText,
-            Text = "Клавишу без модификаторов можно назначить только такую, которая ничего не "
-                 + "печатает: Pause, Insert, Scroll Lock или F1–F24.\n\n"
-                 + "Иначе символ пропадёт во всех программах — мы глотаем нажатие целиком, чтобы "
-                 + "оно не попало в текст.",
+            Text = L10n.T("settings.hotkeyHint"),
         });
 
         return page;
@@ -112,14 +110,14 @@ internal sealed class SettingsForm : Form
 
     private TabPage BuildLayoutTab()
     {
-        var page = new TabPage("Раскладка");
+        var page = new TabPage(L10n.T("tab.layout"));
 
         _autoFix.SetBounds(20, 14, 460, 24);
-        _autoFix.Text = "Исправлять раскладку автоматически на границе слова";
+        _autoFix.Text = L10n.T("opt.autoFix");
         page.Controls.Add(_autoFix);
 
         _liveFix.SetBounds(20, 40, 460, 24);
-        _liveFix.Text = "Чинить не дожидаясь пробела";
+        _liveFix.Text = L10n.T("opt.liveFix");
         page.Controls.Add(_liveFix);
 
         // Предупреждение здесь не для красоты: галочка выключена по умолчанию именно потому, что
@@ -131,11 +129,10 @@ internal sealed class SettingsForm : Form
             Width = 440,
             Height = 32,
             ForeColor = SystemColors.GrayText,
-            Text = "Слово чинится прямо в процессе набора. Заметно быстрее, но и ошибается заметнее: "
-                 + "если что-то пойдёт не так, страдает набираемое слово.",
+            Text = L10n.T("settings.liveFixHint"),
         });
 
-        page.Controls.Add(new Label { Left = 20, Top = 100, Width = 460, Text = "Не переключать эти слова (по одному в строке):" });
+        page.Controls.Add(new Label { Left = 20, Top = 100, Width = 460, Text = L10n.T("settings.ignoredWords") });
         _ignoredWords.SetBounds(20, 120, 460, 72);
         _ignoredWords.Multiline = true;
         _ignoredWords.ScrollBars = ScrollBars.Vertical;
@@ -147,7 +144,7 @@ internal sealed class SettingsForm : Form
             Top = 198,
             Width = 460,
             Height = 32,
-            Text = "Программы-исключения, по строке на каждую: имя.exe=off или имя.exe=soft",
+            Text = L10n.T("settings.appModes"),
         });
         _appModes.SetBounds(20, 232, 460, 72);
         _appModes.Multiline = true;
@@ -161,8 +158,7 @@ internal sealed class SettingsForm : Form
             Width = 460,
             Height = 34,
             ForeColor = SystemColors.GrayText,
-            Text = "Терминалы, видеоредакторы и удалённые рабочие столы отключены по умолчанию — "
-                 + "перечислять их здесь не нужно.",
+            Text = L10n.T("settings.appModesHint"),
         });
 
         return page;
@@ -170,37 +166,38 @@ internal sealed class SettingsForm : Form
 
     private TabPage BuildVoiceTab()
     {
-        var page = new TabPage("Голос");
+        var page = new TabPage(L10n.T("tab.voice"));
 
-        page.Controls.Add(Caption("Модель", 20));
+        page.Controls.Add(Caption(L10n.T("settings.model"), 20));
         _modelPath.SetBounds(200, 17, 220, 24);
         _modelPath.ReadOnly = true;
         page.Controls.Add(_modelPath);
 
-        var browse = new Button { Text = "Выбрать…", Left = 426, Top = 16, Width = 60 };
+        var browse = new Button { Text = L10n.T("settings.browse"), Left = 426, Top = 16, Width = 60 };
         browse.Click += (_, _) => ChooseModel();
         page.Controls.Add(browse);
 
-        page.Controls.Add(Caption("Язык", 56));
+        page.Controls.Add(Caption(L10n.T("settings.language"), 56));
         _language.SetBounds(200, 53, 220, 24);
         _language.DropDownStyle = ComboBoxStyle.DropDownList;
-        _language.Items.AddRange(new object[] { "Определять сам", "Русский", "English" });
+        // Названия языков распознавания пишутся на самих языках — так их узнают в любом интерфейсе.
+        _language.Items.AddRange(new object[] { L10n.T("lang.auto"), "Русский", "English" });
         page.Controls.Add(_language);
 
         _dropPeriod.SetBounds(20, 100, 460, 24);
-        _dropPeriod.Text = "Убирать точку в конце";
+        _dropPeriod.Text = L10n.T("opt.dropPeriod");
         page.Controls.Add(_dropPeriod);
 
         _dropCapital.SetBounds(20, 128, 460, 24);
-        _dropCapital.Text = "Начинать со строчной буквы";
+        _dropCapital.Text = L10n.T("opt.dropCapital");
         page.Controls.Add(_dropCapital);
 
         _trailingSpace.SetBounds(20, 156, 460, 24);
-        _trailingSpace.Text = "Добавлять пробел в конце";
+        _trailingSpace.Text = L10n.T("opt.trailingSpace");
         page.Controls.Add(_trailingSpace);
 
         _autoEnter.SetBounds(20, 184, 460, 24);
-        _autoEnter.Text = "Отправлять Enter сразу после текста";
+        _autoEnter.Text = L10n.T("opt.autoEnter");
         page.Controls.Add(_autoEnter);
 
         page.Controls.Add(new Label
@@ -210,8 +207,7 @@ internal sealed class SettingsForm : Form
             Width = 460,
             Height = 70,
             ForeColor = SystemColors.GrayText,
-            Text = "Распознавание идёт на вашем компьютере, в сеть не уходит ничего.\n"
-                 + "Модель скачивается отдельно — файл ggml-*.bin с Hugging Face.",
+            Text = L10n.T("settings.privacyHint"),
         });
 
         return page;
@@ -219,7 +215,7 @@ internal sealed class SettingsForm : Form
 
     private TabPage BuildSnippetsTab()
     {
-        var page = new TabPage("Сниппеты");
+        var page = new TabPage(L10n.T("tab.snippets"));
 
         page.Controls.Add(new Label
         {
@@ -227,7 +223,7 @@ internal sealed class SettingsForm : Form
             Top = 16,
             Width = 460,
             Height = 34,
-            Text = "По строке на сокращение: сокращение = что подставить",
+            Text = L10n.T("settings.snippets"),
         });
 
         _snippetLines.SetBounds(20, 52, 460, 220);
@@ -243,8 +239,7 @@ internal sealed class SettingsForm : Form
             Width = 460,
             Height = 60,
             ForeColor = SystemColors.GrayText,
-            Text = "Раскладка и регистр не важны: сокращение «адр» сработает и если набрать «flh», "
-                 + "забыв переключить язык.",
+            Text = L10n.T("settings.snippetsHint"),
         });
 
         return page;
@@ -257,8 +252,8 @@ internal sealed class SettingsForm : Form
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Файл модели whisper (ggml-*.bin)",
-            Filter = "Модели whisper (*.bin)|*.bin|Все файлы (*.*)|*.*",
+            Title = L10n.T("dialog.modelTitle"),
+            Filter = L10n.T("dialog.modelFilter"),
         };
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
@@ -306,13 +301,13 @@ internal sealed class SettingsForm : Form
         // выбор человека нельзя — он решит, что программа сломана; а согласиться нельзя тем более.
         if (_dictationHotkey.VirtualKey != 0 && !_dictationHotkey.IsSafe())
         {
-            Warn("Хоткей диктовки");
+            Warn(L10n.T("warn.dictationHotkey"));
             return;
         }
 
         if (_layoutHotkey.VirtualKey != 0 && !_layoutHotkey.IsSafe())
         {
-            Warn("Хоткей переключения слова");
+            Warn(L10n.T("warn.layoutHotkey"));
             return;
         }
 
@@ -373,9 +368,7 @@ internal sealed class SettingsForm : Form
     private void Warn(string what) =>
         MessageBox.Show(
             this,
-            $"{what}: клавишу без модификаторов можно назначить только такую, которая ничего не "
-            + "печатает — Pause, Insert, Scroll Lock или F1–F24.\n\n"
-            + "Иначе этот символ перестанет набираться во всех программах.",
+            L10n.T("warn.unsafeHotkey", what),
             "Keyboop",
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning);

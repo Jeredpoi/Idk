@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Keyboop.Core;
 using Keyboop.Core.Layout;
 using Keyboop.Core.Snippets;
 using Keyboop.Core.Speech;
@@ -39,6 +40,12 @@ internal sealed class TrayApp : ApplicationContext
     internal TrayApp()
     {
         _settings = AppSettings.Load();
+
+        // ⚠️ Язык выбираем ПЕРВЫМ ДЕЛОМ, до всего остального. Ниже собирается меню, а оно берёт
+        // строки в момент сборки: сделай это позже — и первое меню осталось бы на языке по
+        // умолчанию до перезапуска.
+        ApplyUiLanguage();
+
         _history = new VoiceHistory(AppSettings.VoiceHistoryPath);
         _voice = new VoiceController(_settings, _engine, _history);
 
@@ -72,7 +79,7 @@ internal sealed class TrayApp : ApplicationContext
 
         // О выученном слове говорим: решение обратимо, и человек должен знать, что оно принято.
         _undo.Learned += word => _ui.Post(
-            _ => ShowBalloon($"Больше не переключаю «{word}». Убрать можно в настройках."), null);
+            _ => ShowBalloon(L10n.T("notice.learned", word)), null);
 
         _voice.StateChanged += OnStateChanged;
         _voice.Notice += OnNotice;
@@ -107,7 +114,7 @@ internal sealed class TrayApp : ApplicationContext
             // понять, что произошло. Чаще всего мешает другой перехватчик или политика домена.
             Log.Write($"хук: не установлен — {ex.Message}");
             MessageBox.Show(
-                ex.Message + "\n\nБез перехватчика клавиатуры хоткей диктовки работать не будет.",
+                ex.Message + L10n.T("notice.hookFailed"),
                 "Keyboop", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -127,7 +134,7 @@ internal sealed class TrayApp : ApplicationContext
         catch (Exception ex) when (ex is FileNotFoundException or IOException or ApplicationException)
         {
             Log.Write($"модель: не загружена — {ex.GetType().Name}: {ex.Message}");
-            ShowBalloon("Модель не загрузилась. Выберите файл заново в меню трея.");
+            ShowBalloon(L10n.T("notice.modelFailed"));
         }
     }
 
@@ -135,12 +142,12 @@ internal sealed class TrayApp : ApplicationContext
     {
         var menu = new ContextMenuStrip();
 
-        menu.Items.Add("Настройки…", null, (_, _) => OpenSettings());
+        menu.Items.Add(L10n.T("tray.settings"), null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Выбрать модель…", null, (_, _) => ChooseModel());
+        menu.Items.Add(L10n.T("tray.chooseModel"), null, (_, _) => ChooseModel());
 
-        var language = new ToolStripMenuItem("Язык");
-        foreach (var (code, title) in new[] { ("auto", "Определять сам"), ("ru", "Русский"), ("en", "English") })
+        var language = new ToolStripMenuItem(L10n.T("tray.voiceLanguage"));
+        foreach (var (code, title) in new[] { ("auto", L10n.T("lang.auto")), ("ru", "Русский"), ("en", "English") })
         {
             var item = new ToolStripMenuItem(title) { Checked = _settings.Language == code };
             item.Click += (_, _) =>
@@ -158,24 +165,25 @@ internal sealed class TrayApp : ApplicationContext
         }
 
         menu.Items.Add(language);
+        menu.Items.Add(BuildUiLanguageMenu());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(Toggle("Убирать точку в конце", _settings.DropFinalPeriod,
+        menu.Items.Add(Toggle(L10n.T("opt.dropPeriod"), _settings.DropFinalPeriod,
             v => _settings.DropFinalPeriod = v));
-        menu.Items.Add(Toggle("Начинать со строчной буквы", _settings.DropLeadingCapital,
+        menu.Items.Add(Toggle(L10n.T("opt.dropCapital"), _settings.DropLeadingCapital,
             v => _settings.DropLeadingCapital = v));
-        menu.Items.Add(Toggle("Пробел в конце", _settings.TrailingSpace,
+        menu.Items.Add(Toggle(L10n.T("opt.trailingSpace"), _settings.TrailingSpace,
             v => _settings.TrailingSpace = v));
-        menu.Items.Add(Toggle("Отправлять Enter после текста", _settings.AutoEnter,
+        menu.Items.Add(Toggle(L10n.T("opt.autoEnter"), _settings.AutoEnter,
             v => _settings.AutoEnter = v));
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(Toggle("Исправлять раскладку автоматически", _settings.LayoutAutoFix,
+        menu.Items.Add(Toggle(L10n.T("opt.autoFix"), _settings.LayoutAutoFix,
             v =>
             {
                 _settings.LayoutAutoFix = v;
                 _layout.AutoEnabled = v;
                 _foreground.Invalidate();
             }));
-        menu.Items.Add(Toggle("Чинить не дожидаясь пробела", _settings.LayoutLiveFix,
+        menu.Items.Add(Toggle(L10n.T("opt.liveFix"), _settings.LayoutLiveFix,
             v =>
             {
                 _settings.LayoutLiveFix = v;
@@ -186,20 +194,56 @@ internal sealed class TrayApp : ApplicationContext
         // Мгновенное выключение. Нужно ровно на случай «что-то пошло не так прямо сейчас»:
         // человек должен уметь остановить программу, не разбираясь и не убивая процесс
         // через диспетчер задач.
-        _pauseItem = new ToolStripMenuItem("Приостановить") { CheckOnClick = true };
+        _pauseItem = new ToolStripMenuItem(L10n.T("tray.pause")) { CheckOnClick = true };
         _pauseItem.CheckedChanged += (_, _) => SetPaused(_pauseItem.Checked);
         menu.Items.Add(_pauseItem);
 
-        menu.Items.Add(Toggle("Запускать при входе в систему", Autostart.IsEnabled, Autostart.Set));
+        menu.Items.Add(Toggle(L10n.T("tray.autostart"), Autostart.IsEnabled, Autostart.Set));
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("История диктовок…", null, (_, _) => OpenHistory());
-        menu.Items.Add("Показать лог", null, (_, _) => OpenLog());
-        menu.Items.Add("Выход", null, (_, _) => ExitThread());
+        menu.Items.Add(L10n.T("tray.history"), null, (_, _) => OpenHistory());
+        menu.Items.Add(L10n.T("tray.log"), null, (_, _) => OpenLog());
+        menu.Items.Add(L10n.T("tray.quit"), null, (_, _) => ExitThread());
 
         return menu;
     }
 
     private ToolStripMenuItem? _pauseItem;
+
+    /// <summary>
+    /// Язык интерфейса. Отдельный пункт, а не общий с языком распознавания: диктовать по-английски
+    /// и читать меню по-русски — совершенно нормальное сочетание, и объединять их было бы
+    /// самоуверенностью.
+    /// </summary>
+    private ToolStripMenuItem BuildUiLanguageMenu()
+    {
+        var root = new ToolStripMenuItem(L10n.T("tray.uiLanguage"));
+
+        foreach (var (code, title) in new[] { ("auto", L10n.T("lang.auto")), ("ru", "Русский"), ("en", "English") })
+        {
+            var item = new ToolStripMenuItem(title) { Checked = _settings.UiLanguage == code };
+            item.Click += (_, _) =>
+            {
+                _settings.UiLanguage = code;
+                _settings.Save();
+                ApplyUiLanguage();
+
+                // Меню собрано из уже переведённых строк, поэтому его надо собрать заново — иначе
+                // язык сменится только после перезапуска, а человек решит, что пункт не работает.
+                _tray.ContextMenuStrip = BuildMenu();
+                _shownLayout = string.Empty;
+                RefreshLayoutIcon();
+            };
+            root.DropDownItems.Add(item);
+        }
+
+        return root;
+    }
+
+    /// <summary>Применить выбранный язык интерфейса; «auto» означает язык системы.</summary>
+    private void ApplyUiLanguage() =>
+        L10n.Select(
+            _settings.UiLanguage,
+            System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName);
 
     /// <summary>Пауза снимает перехватчик целиком: пока он снят, мы не видим ввод вообще.</summary>
     private void SetPaused(bool paused)
@@ -208,7 +252,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             _hook.Uninstall();
             _tray.Icon = _icons.Paused;
-            _tray.Text = "Keyboop — приостановлен";
+            _tray.Text = L10n.T("state.paused");
             return;
         }
 
@@ -221,7 +265,7 @@ internal sealed class TrayApp : ApplicationContext
         catch (InvalidOperationException ex)
         {
             Log.Write($"хук: возобновить не удалось — {ex.Message}");
-            ShowBalloon("Не удалось возобновить работу. Подробности в логе.");
+            ShowBalloon(L10n.T("notice.resumeFailed"));
             if (_pauseItem is not null)
             {
                 _pauseItem.Checked = true;   // состояние меню обязано отражать правду
@@ -244,8 +288,8 @@ internal sealed class TrayApp : ApplicationContext
     {
         using var dialog = new OpenFileDialog
         {
-            Title = "Файл модели whisper (ggml-*.bin)",
-            Filter = "Модели whisper (*.bin)|*.bin|Все файлы (*.*)|*.*",
+            Title = L10n.T("dialog.modelTitle"),
+            Filter = L10n.T("dialog.modelFilter"),
         };
 
         if (dialog.ShowDialog() != DialogResult.OK)
@@ -258,12 +302,12 @@ internal sealed class TrayApp : ApplicationContext
             _engine.LoadModel(dialog.FileName);
             _settings.ModelPath = dialog.FileName;
             _settings.Save();
-            ShowBalloon("Модель загружена. Можно диктовать.");
+            ShowBalloon(L10n.T("notice.modelLoaded"));
         }
         catch (Exception ex)
         {
             Log.Write($"модель: выбор не удался — {ex.GetType().Name}: {ex.Message}");
-            MessageBox.Show("Не удалось загрузить модель:\n" + ex.Message,
+            MessageBox.Show(L10n.T("error.modelLoad") + ex.Message,
                 "Keyboop", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
@@ -356,12 +400,12 @@ internal sealed class TrayApp : ApplicationContext
             {
                 case VoiceState.Recording:
                     _tray.Icon = _icons.Listening;
-                    _tray.Text = "Keyboop — идёт запись";
+                    _tray.Text = L10n.T("state.recording");
                     break;
 
                 case VoiceState.Processing:
                     _tray.Icon = _icons.Processing;
-                    _tray.Text = "Keyboop — распознаю";
+                    _tray.Text = L10n.T("state.processing");
                     break;
 
                 default:

@@ -1,0 +1,198 @@
+namespace Keyboop.Core;
+
+public enum Lang
+{
+    Ru,
+    En,
+}
+
+/// <summary>
+/// Язык интерфейса. Русский и английский.
+///
+/// ⚠️ Русский здесь ПЕРВИЧЕН, а английский — не подстрочник к нему. Программа написана
+/// по-русски и звучит по-русски: коротко, без канцелярита и без «Пожалуйста, обратите внимание».
+/// Английский текст пишется заново с той же интонацией, а не переводится дословно, иначе
+/// англоязычный интерфейс читается как машинный перевод — что он, собственно, и есть.
+///
+/// Таблица лежит в ядре, а не в оконном коде, ровно по той же причине, что и детектор: так её
+/// полноту можно проверить тестом на любой машине, не открывая ни одного окна. Пропущенный перевод
+/// — не «мелочь оформления»: в интерфейсе он выглядит как английская фраза посреди русского меню.
+/// </summary>
+public static class L10n
+{
+    /// <summary>Текущий язык. Меняется в настройках; интерфейс пересобирается на месте.</summary>
+    public static Lang Current { get; set; } = Lang.Ru;
+
+    /// <summary>
+    /// Выбрать язык по настройке. <paramref name="preference"/> — «ru», «en» или «auto»;
+    /// при «auto» решает язык системы.
+    /// </summary>
+    public static void Select(string? preference, string? systemLanguage)
+    {
+        Current = preference?.ToLowerInvariant() switch
+        {
+            "ru" => Lang.Ru,
+            "en" => Lang.En,
+            _ => systemLanguage is not null
+                 && systemLanguage.StartsWith("ru", StringComparison.OrdinalIgnoreCase)
+                ? Lang.Ru
+                : Lang.En,
+        };
+    }
+
+    /// <summary>
+    /// Строка по ключу. Неизвестный ключ возвращается как есть — так пропуск виден в интерфейсе
+    /// сразу и не превращается в пустую кнопку.
+    /// </summary>
+    public static string T(string key) =>
+        Table.TryGetValue(key, out var pair) ? (Current == Lang.Ru ? pair.Ru : pair.En) : key;
+
+    public static string T(string key, params object?[] args) =>
+        string.Format(T(key), args);
+
+    /// <summary>Вся таблица целиком — для теста полноты.</summary>
+    public static IReadOnlyDictionary<string, (string Ru, string En)> All => Table;
+
+    private static readonly Dictionary<string, (string Ru, string En)> Table = new()
+    {
+        // ——— Меню в трее ———
+        ["tray.settings"] = ("Настройки…", "Settings…"),
+        ["tray.chooseModel"] = ("Выбрать модель…", "Choose a model…"),
+        ["tray.voiceLanguage"] = ("Язык распознавания", "Speech language"),
+        ["tray.uiLanguage"] = ("Язык интерфейса", "Interface language"),
+        ["tray.pause"] = ("Приостановить", "Pause"),
+        ["tray.autostart"] = ("Запускать при входе в систему", "Start at login"),
+        ["tray.history"] = ("История диктовок…", "Dictation history…"),
+        ["tray.log"] = ("Показать лог", "Show the log"),
+        ["tray.quit"] = ("Выход", "Quit"),
+
+        ["lang.auto"] = ("Определять сам", "Detect automatically"),
+
+        // ——— Подписи значка ———
+        ["state.paused"] = ("Keyboop — приостановлен", "Keyboop — paused"),
+        ["state.recording"] = ("Keyboop — идёт запись", "Keyboop — recording"),
+        ["state.processing"] = ("Keyboop — распознаю", "Keyboop — transcribing"),
+
+        // ——— Переключатели, общие для меню и окна настроек ———
+        ["opt.dropPeriod"] = ("Убирать точку в конце", "Drop the final period"),
+        ["opt.dropCapital"] = ("Начинать со строчной буквы", "Start with a lowercase letter"),
+        ["opt.trailingSpace"] = ("Добавлять пробел в конце", "Add a trailing space"),
+        ["opt.autoEnter"] = ("Отправлять Enter сразу после текста", "Press Enter right after the text"),
+        ["opt.autoFix"] = ("Исправлять раскладку автоматически на границе слова",
+                           "Fix the layout automatically at the word boundary"),
+        ["opt.liveFix"] = ("Чинить не дожидаясь пробела", "Fix without waiting for a space"),
+
+        // ——— Сообщения ———
+        ["notice.learned"] = ("Больше не переключаю «{0}». Убрать можно в настройках.",
+                              "I won't switch “{0}” any more. You can undo this in settings."),
+        ["notice.hookFailed"] = ("\n\nБез перехватчика клавиатуры хоткей диктовки работать не будет.",
+                                 "\n\nWithout the keyboard hook the dictation hotkey will not work."),
+        ["notice.modelFailed"] = ("Модель не загрузилась. Выберите файл заново в меню трея.",
+                                  "The model didn't load. Pick the file again from the tray menu."),
+        ["notice.modelLoaded"] = ("Модель загружена. Можно диктовать.",
+                                  "Model loaded. You can dictate now."),
+        ["notice.resumeFailed"] = ("Не удалось возобновить работу. Подробности в логе.",
+                                   "Couldn't resume. The log has the details."),
+        ["error.modelLoad"] = ("Не удалось загрузить модель:\n", "Couldn't load the model:\n"),
+
+        ["voice.noModel"] = ("Модель распознавания не выбрана. Откройте настройки и укажите файл модели.",
+                             "No speech model selected. Open settings and point Keyboop at a model file."),
+        ["voice.recordFailed"] = ("Не удалось начать запись. Проверьте микрофон и разрешение на доступ к нему.",
+                                  "Couldn't start recording. Check the microphone and its permission."),
+        ["voice.silence"] = ("Микрофон молчал. Возможно, он занят другим приложением.",
+                             "The microphone stayed silent. Another app may be holding it."),
+        ["voice.empty"] = ("Речь не распознана.", "Nothing was recognised."),
+        ["voice.insertFailed"] = ("Не удалось вставить текст. Он сохранён в истории диктовок.",
+                                  "Couldn't insert the text. It's saved in the dictation history."),
+        ["voice.failed"] = ("Распознавание не удалось. Подробности в логе.",
+                            "Transcription failed. The log has the details."),
+
+        // ——— Диалог выбора модели ———
+        ["dialog.modelTitle"] = ("Файл модели whisper (ggml-*.bin)", "Whisper model file (ggml-*.bin)"),
+        ["dialog.modelFilter"] = ("Модели whisper (*.bin)|*.bin|Все файлы (*.*)|*.*",
+                                  "Whisper models (*.bin)|*.bin|All files (*.*)|*.*"),
+
+        // ——— Окно настроек ———
+        ["settings.title"] = ("Keyboop — настройки", "Keyboop — settings"),
+        ["settings.save"] = ("Сохранить", "Save"),
+        ["settings.close"] = ("Закрыть", "Close"),
+
+        ["tab.hotkeys"] = ("Хоткеи", "Hotkeys"),
+        ["tab.layout"] = ("Раскладка", "Layout"),
+        ["tab.voice"] = ("Голос", "Voice"),
+        ["tab.snippets"] = ("Сниппеты", "Snippets"),
+
+        ["settings.dictation"] = ("Диктовка", "Dictation"),
+        ["settings.mode"] = ("Как работает", "How it works"),
+        ["settings.convertWord"] = ("Переключить слово", "Switch a word"),
+        ["mode.hold"] = ("Удерживать", "Hold"),
+        ["mode.toggle"] = ("Переключать", "Toggle"),
+        ["settings.hotkeyHint"] = (
+            "Клавишу без модификаторов можно назначить только такую, которая ничего не "
+            + "печатает: Pause, Insert, Scroll Lock или F1–F24.\n\n"
+            + "Иначе символ пропадёт во всех программах — мы глотаем нажатие целиком, чтобы "
+            + "оно не попало в текст.",
+            "A hotkey without modifiers may only use a key that types nothing: "
+            + "Pause, Insert, Scroll Lock or F1–F24.\n\n"
+            + "Otherwise that character disappears everywhere — we swallow the whole keypress "
+            + "so it never reaches the text."),
+
+        ["settings.liveFixHint"] = (
+            "Слово чинится прямо в процессе набора. Заметно быстрее, но и ошибается заметнее: "
+            + "если что-то пойдёт не так, страдает набираемое слово.",
+            "The word is fixed as you type it. Noticeably faster — and noticeably worse when it "
+            + "misfires, because the word you're typing is what suffers."),
+        ["settings.ignoredWords"] = ("Не переключать эти слова (по одному в строке):",
+                                     "Never switch these words (one per line):"),
+        ["settings.appModes"] = ("Программы-исключения, по строке на каждую: имя.exe=off или имя.exe=soft",
+                                 "Excepted apps, one per line: name.exe=off or name.exe=soft"),
+        ["settings.appModesHint"] = (
+            "Терминалы, видеоредакторы и удалённые рабочие столы отключены по умолчанию — "
+            + "перечислять их здесь не нужно.",
+            "Terminals, video editors and remote desktops are off by default — "
+            + "no need to list them here."),
+
+        ["settings.model"] = ("Модель", "Model"),
+        ["settings.browse"] = ("Выбрать…", "Browse…"),
+        ["settings.language"] = ("Язык", "Language"),
+        ["settings.privacyHint"] = (
+            "Распознавание идёт на вашем компьютере, в сеть не уходит ничего.\n"
+            + "Модель скачивается отдельно — файл ggml-*.bin с Hugging Face.",
+            "Speech is recognised on your own computer; nothing leaves it.\n"
+            + "The model is downloaded separately — a ggml-*.bin file from Hugging Face."),
+
+        ["settings.snippets"] = ("По строке на сокращение: сокращение = что подставить",
+                                 "One shortcut per line: shortcut = what it expands to"),
+        ["settings.snippetsHint"] = (
+            "Раскладка и регистр не важны: сокращение «адр» сработает и если набрать «flh», "
+            + "забыв переключить язык.",
+            "Layout and case don't matter: the shortcut “адр” fires even when typed as “flh” "
+            + "with the wrong layout on."),
+
+        ["warn.dictationHotkey"] = ("Хоткей диктовки", "The dictation hotkey"),
+        ["warn.layoutHotkey"] = ("Хоткей переключения слова", "The word-switching hotkey"),
+        ["warn.unsafeHotkey"] = (
+            "{0}: клавишу без модификаторов можно назначить только такую, которая ничего не "
+            + "печатает — Pause, Insert, Scroll Lock или F1–F24.\n\n"
+            + "Иначе этот символ перестанет набираться во всех программах.",
+            "{0} may only use a modifier-free key that types nothing — "
+            + "Pause, Insert, Scroll Lock or F1–F24.\n\n"
+            + "Otherwise that character stops typing in every program."),
+
+        // ——— История диктовок ———
+        ["history.title"] = ("Keyboop — история диктовок", "Keyboop — dictation history"),
+        ["history.hint"] = ("Двойной щелчок — скопировать. Записи хранятся час и стираются сами.",
+                            "Double-click to copy. Entries are kept for an hour, then erased."),
+        ["history.copy"] = ("Копировать", "Copy"),
+        ["history.clear"] = ("Очистить", "Clear"),
+        ["history.empty"] = ("(пусто)", "(empty)"),
+        ["history.clipboardBusy"] = ("Буфер обмена сейчас занят другой программой. Попробуйте ещё раз.",
+                                     "The clipboard is busy in another program right now. Try again."),
+        ["history.confirmClear"] = ("Стереть всю историю диктовок?", "Erase the whole dictation history?"),
+
+        // ——— Поле назначения хоткея ———
+        ["hotkey.press"] = ("нажмите сочетание", "press a combination"),
+        ["hotkey.waiting"] = ("жду нажатия…", "waiting…"),
+        ["hotkey.unassigned"] = ("не назначено", "not assigned"),
+    };
+}
