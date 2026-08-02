@@ -65,6 +65,9 @@ internal sealed class VoiceController : IDisposable
 
         try
         {
+            // Микрофон берём из настроек на КАЖДОЙ записи: человек мог поменять его в окне
+            // настроек минуту назад, и требовать перезапуска ради этого не за что.
+            _recorder.DeviceId = _settings.MicrophoneId;
             _recorder.Start();
             StateChanged?.Invoke(VoiceState.Recording);
         }

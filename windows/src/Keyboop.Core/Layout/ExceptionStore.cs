@@ -115,6 +115,12 @@ public sealed class ExceptionStore : IExceptionStore
         Save();
     }
 
+    public void RemoveForceSwap(string word)
+    {
+        _forceSwap.Remove(word.Trim().ToLowerInvariant());
+        Save();
+    }
+
     public void AddLearned(string word)
     {
         var w = word.Trim().ToLowerInvariant();

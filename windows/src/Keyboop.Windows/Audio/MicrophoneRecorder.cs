@@ -24,6 +24,12 @@ internal sealed class MicrophoneRecorder : IDisposable
 
     internal bool IsRecording { get; private set; }
 
+    /// <summary>
+    /// Идентификатор микрофона. Пусто — как решит Windows.
+    /// Меняется из настроек и подхватывается со следующей записи, без перезапуска.
+    /// </summary>
+    internal string DeviceId { get; set; } = AudioDevices.SystemDefault;
+
     /// <summary>Уровень сигнала для индикатора (0…1). Считается по последнему буферу.</summary>
     internal event Action<float>? LevelChanged;
 
@@ -38,7 +44,14 @@ internal sealed class MicrophoneRecorder : IDisposable
 
             _samples.Clear();
 
-            var capture = new WasapiCapture();
+            // Устройство разрешаем на КАЖДОЙ записи, а не один раз при запуске: микрофоны
+            // подключают и отключают, и закэшированный дескриптор пережил бы своё устройство.
+            //
+            // ⚠️ Освобождать его здесь НЕЛЬЗЯ, хотя рука тянется: WasapiCapture держит устройство
+            // всё время записи, и освобождённый дескриптор оборвал бы запись на первом же буфере.
+            // Владельцем становится capture, он же его и закроет.
+            var device = AudioDevices.Resolve(DeviceId);
+            var capture = device is null ? new WasapiCapture() : new WasapiCapture(device);
             _format = capture.WaveFormat;
             capture.DataAvailable += OnDataAvailable;
 

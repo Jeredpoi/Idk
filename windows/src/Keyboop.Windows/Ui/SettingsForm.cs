@@ -1,6 +1,7 @@
 using Keyboop.Core;
 using Keyboop.Core.Layout;
 using Keyboop.Core.Snippets;
+using Keyboop.Windows.Audio;
 
 namespace Keyboop.Windows.Ui;
 
@@ -22,6 +23,7 @@ internal sealed class SettingsForm : Form
     private readonly HotkeyBox _layoutHotkey = new();
     private readonly ComboBox _dictationMode = new();
     private readonly ComboBox _language = new();
+    private readonly ComboBox _microphone = new();
     private readonly TextBox _modelPath = new();
     private readonly CheckBox _autoFix = new();
     private readonly CheckBox _liveFix = new();
@@ -132,7 +134,21 @@ internal sealed class SettingsForm : Form
             Text = L10n.T("settings.liveFixHint"),
         });
 
-        page.Controls.Add(new Label { Left = 20, Top = 100, Width = 460, Text = L10n.T("settings.ignoredWords") });
+        page.Controls.Add(new Label { Left = 20, Top = 100, Width = 300, Text = L10n.T("settings.ignoredWords") });
+
+        // Спорные пары живут в отдельном окне: их три десятка, и в поле «по одному в строке» они
+        // не помещаются — да и выбирать там надо не «есть/нет», а кто из двух побеждает.
+        var pairs = new Button { Text = L10n.T("amb.open"), Left = 340, Top = 96, Width = 140 };
+        pairs.Click += (_, _) =>
+        {
+            using var form = new AmbiguousPairsForm(_exceptions);
+            form.ShowDialog(this);
+
+            // Выбор победителя убирает слово из «не переключать». Не перечитав поле, мы бы вернули
+            // его обратно при сохранении — и две записи заспорили бы между собой.
+            _ignoredWords.Lines = _exceptions.Ignored.OrderBy(w => w, StringComparer.Ordinal).ToArray();
+        };
+        page.Controls.Add(pairs);
         _ignoredWords.SetBounds(20, 120, 460, 72);
         _ignoredWords.Multiline = true;
         _ignoredWords.ScrollBars = ScrollBars.Vertical;
@@ -184,28 +200,33 @@ internal sealed class SettingsForm : Form
         _language.Items.AddRange(new object[] { L10n.T("lang.auto"), "Русский", "English" });
         page.Controls.Add(_language);
 
-        _dropPeriod.SetBounds(20, 100, 460, 24);
+        page.Controls.Add(Caption(L10n.T("settings.microphone"), 92));
+        _microphone.SetBounds(200, 89, 286, 24);
+        _microphone.DropDownStyle = ComboBoxStyle.DropDownList;
+        page.Controls.Add(_microphone);
+
+        _dropPeriod.SetBounds(20, 136, 460, 24);
         _dropPeriod.Text = L10n.T("opt.dropPeriod");
         page.Controls.Add(_dropPeriod);
 
-        _dropCapital.SetBounds(20, 128, 460, 24);
+        _dropCapital.SetBounds(20, 164, 460, 24);
         _dropCapital.Text = L10n.T("opt.dropCapital");
         page.Controls.Add(_dropCapital);
 
-        _trailingSpace.SetBounds(20, 156, 460, 24);
+        _trailingSpace.SetBounds(20, 192, 460, 24);
         _trailingSpace.Text = L10n.T("opt.trailingSpace");
         page.Controls.Add(_trailingSpace);
 
-        _autoEnter.SetBounds(20, 184, 460, 24);
+        _autoEnter.SetBounds(20, 220, 460, 24);
         _autoEnter.Text = L10n.T("opt.autoEnter");
         page.Controls.Add(_autoEnter);
 
         page.Controls.Add(new Label
         {
             Left = 20,
-            Top = 230,
+            Top = 256,
             Width = 460,
-            Height = 70,
+            Height = 60,
             ForeColor = SystemColors.GrayText,
             Text = L10n.T("settings.privacyHint"),
         });
@@ -262,6 +283,38 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    /// <summary>
+    /// Заполнить список микрофонов. «Как решит Windows» — всегда первый пункт и значение по
+    /// умолчанию: большинству людей выбирать нечего, и заставлять их — лишний шаг.
+    ///
+    /// Выбранный микрофон, которого уже нет в системе (вынули из USB), молча возвращает список
+    /// к умолчанию. Показывать «устройство не найдено» тут не за что: провод вынимают каждый день.
+    /// </summary>
+    private void FillMicrophones()
+    {
+        // DisplayMember выставляем ДО наполнения: заданный после, он не перерисовывает уже
+        // добавленные строки, и список показывает имя типа вместо названия микрофона.
+        _microphone.DisplayMember = nameof(AudioInput.Name);
+        _microphone.Items.Clear();
+        _microphone.Items.Add(new AudioInput(AudioDevices.SystemDefault, L10n.T("mic.default")));
+
+        foreach (var input in AudioDevices.Inputs())
+        {
+            _microphone.Items.Add(input);
+        }
+
+        _microphone.SelectedIndex = 0;
+
+        for (var i = 1; i < _microphone.Items.Count; i++)
+        {
+            if (_microphone.Items[i] is AudioInput input && input.Id == _settings.MicrophoneId)
+            {
+                _microphone.SelectedIndex = i;
+                break;
+            }
+        }
+    }
+
     private void LoadValues()
     {
         _dictationHotkey.Assign(_settings.HotkeyVirtualKey, _settings.HotkeyModifiers);
@@ -274,6 +327,8 @@ internal sealed class SettingsForm : Form
             "en" => 2,
             _ => 0,
         };
+
+        FillMicrophones();
 
         _modelPath.Text = _settings.ModelPath;
         _autoFix.Checked = _settings.LayoutAutoFix;
@@ -325,6 +380,7 @@ internal sealed class SettingsForm : Form
         };
 
         _settings.ModelPath = _modelPath.Text;
+        _settings.MicrophoneId = _microphone.SelectedItem is AudioInput chosen ? chosen.Id : string.Empty;
         _settings.LayoutAutoFix = _autoFix.Checked;
         _settings.LayoutLiveFix = _liveFix.Checked;
         _settings.DropFinalPeriod = _dropPeriod.Checked;

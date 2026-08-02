@@ -30,6 +30,14 @@ public sealed class AppSettings
     /// <summary>Путь к файлу модели ggml-*.bin.</summary>
     public string ModelPath { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Идентификатор микрофона. Пусто — устройство по умолчанию.
+    ///
+    /// Храним именно идентификатор, а не номер в списке: номера перетасовываются при каждом
+    /// подключении, и «второй в списке» после перезагрузки означал бы уже другой микрофон.
+    /// </summary>
+    public string MicrophoneId { get; set; } = string.Empty;
+
     /// <summary>Язык распознавания речи: «ru», «en» или «auto».</summary>
     public string Language { get; set; } = "auto";
 

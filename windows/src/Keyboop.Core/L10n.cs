@@ -153,6 +153,8 @@ public static class L10n
             + "no need to list them here."),
 
         ["settings.model"] = ("Модель", "Model"),
+        ["settings.microphone"] = ("Микрофон", "Microphone"),
+        ["mic.default"] = ("Как решит Windows", "Whatever Windows picks"),
         ["settings.browse"] = ("Выбрать…", "Browse…"),
         ["settings.language"] = ("Язык", "Language"),
         ["settings.privacyHint"] = (
@@ -168,6 +170,25 @@ public static class L10n
             + "забыв переключить язык.",
             "Layout and case don't matter: the shortcut “адр” fires even when typed as “flh” "
             + "with the wrong layout on."),
+
+        // ——— Спорные пары ———
+        ["amb.open"] = ("Спорные пары…", "Ambiguous pairs…"),
+        ["amb.title"] = ("Keyboop — кто побеждает", "Keyboop — who wins"),
+        ["amb.sub"] = (
+            "Эти слова набираются одними и теми же клавишами и существуют в обоих языках. "
+            + "Мы не можем угадать за вас: кто-то пишет «versus» каждый день, кто-то — «мы» "
+            + "в каждом втором предложении. Выберите, что должно получаться.",
+            "These words are typed with the very same keys and exist in both languages. "
+            + "We can't guess for you: some people write “versus” daily, others write “мы” "
+            + "in every other sentence. Pick what should come out."),
+        ["amb.auto"] = ("по контексту", "by context"),
+        ["amb.colTyped"] = ("Набрано этими клавишами", "Typed with these keys"),
+        ["amb.colResult"] = ("Что получится", "What comes out"),
+        ["amb.hint"] = (
+            "Выбор сильнее всех встроенных правил — он попадает в исключения. Слово, которого "
+            + "здесь нет, всегда можно добавить вручную на вкладке «Раскладка».",
+            "Your choice outranks every built-in rule — it goes into the exceptions. A pair that "
+            + "isn't listed can always be added by hand on the Layout tab."),
 
         ["warn.dictationHotkey"] = ("Хоткей диктовки", "The dictation hotkey"),
         ["warn.layoutHotkey"] = ("Хоткей переключения слова", "The word-switching hotkey"),
