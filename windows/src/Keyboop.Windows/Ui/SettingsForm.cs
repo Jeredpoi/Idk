@@ -23,6 +23,7 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _language = new();
     private readonly TextBox _modelPath = new();
     private readonly CheckBox _autoFix = new();
+    private readonly CheckBox _liveFix = new();
     private readonly CheckBox _dropPeriod = new();
     private readonly CheckBox _dropCapital = new();
     private readonly CheckBox _trailingSpace = new();
@@ -113,12 +114,29 @@ internal sealed class SettingsForm : Form
     {
         var page = new TabPage("Раскладка");
 
-        _autoFix.SetBounds(20, 18, 460, 24);
+        _autoFix.SetBounds(20, 14, 460, 24);
         _autoFix.Text = "Исправлять раскладку автоматически на границе слова";
         page.Controls.Add(_autoFix);
 
-        page.Controls.Add(new Label { Left = 20, Top = 54, Width = 460, Text = "Не переключать эти слова (по одному в строке):" });
-        _ignoredWords.SetBounds(20, 76, 460, 100);
+        _liveFix.SetBounds(20, 40, 460, 24);
+        _liveFix.Text = "Чинить не дожидаясь пробела";
+        page.Controls.Add(_liveFix);
+
+        // Предупреждение здесь не для красоты: галочка выключена по умолчанию именно потому, что
+        // цена ошибки посреди слова выше, и человек должен понимать, на что соглашается.
+        page.Controls.Add(new Label
+        {
+            Left = 40,
+            Top = 64,
+            Width = 440,
+            Height = 32,
+            ForeColor = SystemColors.GrayText,
+            Text = "Слово чинится прямо в процессе набора. Заметно быстрее, но и ошибается заметнее: "
+                 + "если что-то пойдёт не так, страдает набираемое слово.",
+        });
+
+        page.Controls.Add(new Label { Left = 20, Top = 100, Width = 460, Text = "Не переключать эти слова (по одному в строке):" });
+        _ignoredWords.SetBounds(20, 120, 460, 72);
         _ignoredWords.Multiline = true;
         _ignoredWords.ScrollBars = ScrollBars.Vertical;
         page.Controls.Add(_ignoredWords);
@@ -126,12 +144,12 @@ internal sealed class SettingsForm : Form
         page.Controls.Add(new Label
         {
             Left = 20,
-            Top = 186,
+            Top = 198,
             Width = 460,
-            Height = 34,
+            Height = 32,
             Text = "Программы-исключения, по строке на каждую: имя.exe=off или имя.exe=soft",
         });
-        _appModes.SetBounds(20, 220, 460, 90);
+        _appModes.SetBounds(20, 232, 460, 72);
         _appModes.Multiline = true;
         _appModes.ScrollBars = ScrollBars.Vertical;
         page.Controls.Add(_appModes);
@@ -139,7 +157,7 @@ internal sealed class SettingsForm : Form
         page.Controls.Add(new Label
         {
             Left = 20,
-            Top = 314,
+            Top = 308,
             Width = 460,
             Height = 34,
             ForeColor = SystemColors.GrayText,
@@ -264,6 +282,7 @@ internal sealed class SettingsForm : Form
 
         _modelPath.Text = _settings.ModelPath;
         _autoFix.Checked = _settings.LayoutAutoFix;
+        _liveFix.Checked = _settings.LayoutLiveFix;
         _dropPeriod.Checked = _settings.DropFinalPeriod;
         _dropCapital.Checked = _settings.DropLeadingCapital;
         _trailingSpace.Checked = _settings.TrailingSpace;
@@ -312,6 +331,7 @@ internal sealed class SettingsForm : Form
 
         _settings.ModelPath = _modelPath.Text;
         _settings.LayoutAutoFix = _autoFix.Checked;
+        _settings.LayoutLiveFix = _liveFix.Checked;
         _settings.DropFinalPeriod = _dropPeriod.Checked;
         _settings.DropLeadingCapital = _dropCapital.Checked;
         _settings.TrailingSpace = _trailingSpace.Checked;

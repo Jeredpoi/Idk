@@ -49,6 +49,13 @@ public sealed class AppSettings
     public bool LayoutAutoFix { get; set; } = true;
 
     /// <summary>
+    /// Чинить раскладку прямо посреди слова, не дожидаясь пробела.
+    ///
+    /// ⚠️ Выключено по умолчанию сознательно — см. комментарий у <c>LayoutEngine.LiveFixEnabled</c>.
+    /// </summary>
+    public bool LayoutLiveFix { get; set; }
+
+    /// <summary>
     /// Клавиша ручного переключения последнего слова. По умолчанию Pause — так же, как в
     /// Punto Switcher, к которому привыкло большинство.
     ///

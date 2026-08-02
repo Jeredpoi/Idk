@@ -31,11 +31,15 @@ internal sealed class LayoutEngine
     private const uint VK_DOWN = 0x28;
     private const uint VK_DELETE = 0x2E;
 
+    private const int VK_SHIFT = 0x10;
     private const int VK_CONTROL = 0x11;
     private const int VK_MENU = 0x12;     // Alt
+    private const int VK_LWIN = 0x5B;
+    private const int VK_RWIN = 0x5C;
 
     private readonly KeystrokeBuffer _buffer = new();
     private readonly AntiResonanceGuard _antiResonance = new();
+    private readonly LiveFixer _live = new();
     private readonly LayoutData _data;
     private readonly IExceptionStore _exceptions;
     private readonly ForegroundApp _foreground;
@@ -61,20 +65,43 @@ internal sealed class LayoutEngine
     /// <summary>Исправлять раскладку автоматически на границе слова.</summary>
     internal bool AutoEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Чинить раскладку прямо посреди слова, не дожидаясь пробела.
+    ///
+    /// ⚠️ ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНО, и это сознательное расхождение с macOS-версией, где включено.
+    /// Там у функции полтора месяца обкатки на живых людях; здесь она не запускалась ни разу.
+    /// Ошибка на границе слова читается как «поправило зря» — обидно, но текст цел. Ошибка
+    /// посреди слова читается как «съело текст». Пока никто не проверил вторую на реальной машине,
+    /// включать её за человека нельзя.
+    /// </summary>
+    internal bool LiveFixEnabled { get; set; }
+
+    /// <summary>
+    /// Человек правит слово руками (стирает и перенабирает середину). Пока правит — посреди слова
+    /// не вмешиваемся вовсе: спорить с человеком в момент, когда он сам исправляет опечатку, —
+    /// худшее, что программа может сделать. На границе слова обычная логика работает как всегда.
+    /// </summary>
+    private bool _wordEdited;
+
     /// <summary>Слово исправлено: сколько символов заменили и в какую сторону (для лога и трея).</summary>
     internal event Action<bool>? Converted;
 
     /// <summary>
     /// Нажатие клавиши. Вызывается из колбэка хука, поэтому здесь нет ничего дорогого:
     /// одно чтение раскладки активного окна, один <c>ToUnicodeEx</c> и работа с памятью.
+    ///
+    /// Возвращает true, если клавишу надо проглотить: так бывает ровно в одном случае — правка
+    /// посреди слова напечатала эту букву сама, внутри общего атомарного пакета.
     /// </summary>
-    internal void OnKeyDown(uint virtualKey, uint scanCode)
+    internal bool OnKeyDown(uint virtualKey, uint scanCode)
     {
         // Ctrl или Alt означают сочетание, а не текст. Буфер после такого недостоверен.
         if (IsHeld(VK_CONTROL) || IsHeld(VK_MENU))
         {
             _buffer.Clear();
-            return;
+            _live.Reset();
+            _wordEdited = false;
+            return false;
         }
 
         switch (virtualKey)
@@ -82,32 +109,52 @@ internal sealed class LayoutEngine
             case VK_BACK:
                 _buffer.Backspace();
                 _undo.Observe(_buffer.CurrentWord);
-                return;
+
+                // Стирание внутри слова — признак ручной правки. Якорь после него недействителен:
+                // на экране уже не то, что мы печатали.
+                _live.Reset();
+                _wordEdited = true;
+                return false;
 
             case VK_SPACE:
             case VK_TAB:
             case VK_RETURN:
                 HandleBoundary(virtualKey);
-                return;
+
+                // Слово кончилось — и правка, и якорь начинаются с чистого листа.
+                _live.Reset();
+                _wordEdited = false;
+                return false;
 
             case VK_LEFT or VK_RIGHT or VK_UP or VK_DOWN:
             case VK_HOME or VK_END or VK_PRIOR or VK_NEXT:
             case VK_ESCAPE or VK_DELETE:
                 // Курсор уехал — дальше мы уже не знаем, что на экране.
                 _buffer.Clear();
-                return;
+                _live.Reset();
+                _wordEdited = false;
+                return false;
         }
 
         var layout = KeyboardLayoutSwitcher.ForegroundLayout();
         var chars = KeyDecoder.Decode(virtualKey, scanCode, layout);
 
-        if (KeyDecoder.IsPrintable(chars))
+        if (!KeyDecoder.IsPrintable(chars))
         {
-            _buffer.Append(chars);
-
-            // Стирание нашего вывода и перенабор оригинала — один из двух честных жестов отмены.
-            _undo.Observe(_buffer.CurrentWord);
+            return false;
         }
+
+        // Правка на лету печатает эту букву сама — вместе с заменой, одним пакетом.
+        if (TryLiveFix(chars))
+        {
+            return true;
+        }
+
+        _buffer.Append(chars);
+
+        // Стирание нашего вывода и перенабор оригинала — один из двух честных жестов отмены.
+        _undo.Observe(_buffer.CurrentWord);
+        return false;
     }
 
     /// <summary>Клик мышью или смена окна: где каретка — мы больше не знаем.</summary>
@@ -116,6 +163,8 @@ internal sealed class LayoutEngine
         _buffer.Clear();
         _undo.ResetContext();
         _antiResonance.ResetHistory();
+        _live.Reset();
+        _wordEdited = false;
     }
 
     /// <summary>
@@ -128,6 +177,9 @@ internal sealed class LayoutEngine
         // по отдельности и не обновляет историю сессии — та расходится с экраном, и групповая
         // печать шла бы по устаревшей модели, портя текст. При авто группа к тому же не нужна:
         // чинить обычно уже нечего.
+        // Ручной хоткей рвёт слово: то, что мы печатали посреди него, больше не якорь.
+        _live.Reset();
+
         if (!AutoEnabled && ConvertGroup())
         {
             return;
@@ -160,6 +212,95 @@ internal sealed class LayoutEngine
 
         // Результат ручной правки защищаем: следующий пробел не должен вернуть всё назад.
         _undo.Protect(converted);
+    }
+
+    /// <summary>
+    /// Попытка починить слово посреди набора. true — букву напечатали мы сами, и её нажатие
+    /// вызывающий обязан проглотить.
+    ///
+    /// ⚠️ ПОРЯДОК ПРОВЕРОК ЗДЕСЬ — ЭТО И ЕСТЬ БЕЗОПАСНОСТЬ ФУНКЦИИ. Сначала отказываемся по
+    /// дешёвым и грубым признакам (выключено, человек правит руками, зажат модификатор, программа
+    /// в исключениях) и только потом трогаем словари. Каждая пропущенная проверка стоит не
+    /// «лишнего срабатывания», а испорченного текста в чужом окне.
+    /// </summary>
+    private bool TryLiveFix(string pending)
+    {
+        if (!LiveFixEnabled || !AutoEnabled || !_data.IsLoaded || _wordEdited)
+        {
+            return false;
+        }
+
+        // ⚠️ ЗАЖАТЫЙ МОДИФИКАТОР — ОТКАЗ. Наши Backspace'ы уедут вместе с ним: Ctrl+Backspace
+        // стирает слово целиком, Shift+Backspace в разных программах означает что угодно.
+        // Заглавную букву человек набирает с зажатым Shift, то есть случай совершенно обычный.
+        // «Обнулить» модификатор нельзя: программа читает ГЛОБАЛЬНОЕ состояние клавиатуры,
+        // а не флаги нашего события. Единственный безопасный ход — не стрелять.
+        if (IsHeld(VK_SHIFT) || IsHeld(VK_LWIN) || IsHeld(VK_RWIN))
+        {
+            return false;
+        }
+
+        // Посреди слова молчим и в мягком режиме тоже, не только в выключенных программах:
+        // мягкий режим стоит на редакторах кода, а там синтетика внутри незаконченного
+        // идентификатора мешает автодополнению сильнее, чем помогает раскладка.
+        if (_foreground.Mode != AppMode.Normal)
+        {
+            return false;
+        }
+
+        var onScreen = _buffer.CurrentWord;
+        var plan = _live.Plan(onScreen, pending, _data, _exceptions);
+
+        if (plan is null)
+        {
+            return false;
+        }
+
+        var fix = plan.Value;
+        var candidate = onScreen + pending;
+
+        // Слово, которое человек только что восстановил сам, посреди набора трогать нельзя тем
+        // более: он смотрит ровно на него.
+        if (_undo.IsProtected(candidate) || _undo.ShouldSuppress(candidate))
+        {
+            return false;
+        }
+
+        if (!_antiResonance.Allow(candidate, fix.Word))
+        {
+            // Резонанс: рвём цикл и забываем контекст, иначе он раскрутится снова — а посреди
+            // слова он раскручивается в темпе набора.
+            _buffer.Clear();
+            _live.Reset();
+            return false;
+        }
+
+        if (!TextInjector.ReplaceText(fix.DeleteCount, fix.Text))
+        {
+            // Пакет не ушёл целиком. Слово могло остаться наполовину стёртым, поэтому наша модель
+            // экрана больше недостоверна — честнее забыть её, чем печатать по ней дальше.
+            Log.Write("правка на лету: система не приняла пакет — контекст сброшен");
+            _buffer.Clear();
+            _live.Reset();
+            return false;
+        }
+
+        _buffer.ApplyConversion(fix.Word);
+        _live.Applied(fix);
+
+        if (!fix.IsHeal)
+        {
+            // Кандидат на откат: если человек сейчас вернёт слово обратно, мы это засчитаем.
+            _undo.NoteConversion(candidate, fix.Word);
+        }
+
+        KeyboardLayoutSwitcher.Switch(fix.ToCyrillic);
+
+        Log.Write($"правка на лету{(fix.IsHeal ? " (лечение)" : string.Empty)}: "
+                  + $"{fix.DeleteCount} симв. {candidate.ScriptClass()} → {(fix.ToCyrillic ? "RU" : "EN")}");
+
+        Converted?.Invoke(fix.ToCyrillic);
+        return true;
     }
 
     private void HandleBoundary(uint virtualKey)

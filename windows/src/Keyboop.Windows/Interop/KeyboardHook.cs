@@ -100,8 +100,12 @@ internal sealed class KeyboardHook : IDisposable
     /// <summary>
     /// Каждое не относящееся к хоткеям нажатие — сюда. На этом живёт исправление раскладки.
     /// Обработчик выполняется прямо в колбэке, то есть в том же жёстком лимите времени.
+    ///
+    /// Возврат true означает «клавишу проглотить»: правка посреди слова печатает эту букву сама,
+    /// внутри общего пакета замены. Пропустить её ещё и от системы значило бы получить букву
+    /// дважды.
     /// </summary>
-    internal Action<uint, uint>? KeyObserved;
+    internal Func<uint, uint, bool>? KeyObserved;
 
     internal void Install()
     {
@@ -202,7 +206,13 @@ internal sealed class KeyboardHook : IDisposable
         {
             try
             {
-                KeyObserved(data.vkCode, data.scanCode);
+                if (KeyObserved(data.vkCode, data.scanCode))
+                {
+                    // Букву напечатали мы сами. Её отпускание тоже придётся проглотить: иначе
+                    // приложение получит keyUp клавиши, нажатия которой при нём не было, — ровно
+                    // тот непарный случай, ради которого существует _swallowedDown.
+                    return SwallowDown(data.vkCode);
+                }
             }
             catch (Exception ex)
             {

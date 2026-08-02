@@ -51,6 +51,7 @@ internal sealed class TrayApp : ApplicationContext
         _layout = new LayoutEngine(LayoutData.Shared, _exceptions, _foreground, _snippets, _undo)
         {
             AutoEnabled = _settings.LayoutAutoFix,
+            LiveFixEnabled = _settings.LayoutLiveFix,
         };
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
@@ -174,6 +175,12 @@ internal sealed class TrayApp : ApplicationContext
                 _layout.AutoEnabled = v;
                 _foreground.Invalidate();
             }));
+        menu.Items.Add(Toggle("Чинить не дожидаясь пробела", _settings.LayoutLiveFix,
+            v =>
+            {
+                _settings.LayoutLiveFix = v;
+                _layout.LiveFixEnabled = v;
+            }));
         menu.Items.Add(new ToolStripSeparator());
 
         // Мгновенное выключение. Нужно ровно на случай «что-то пошло не так прямо сейчас»:
@@ -287,6 +294,7 @@ internal sealed class TrayApp : ApplicationContext
         };
         _hook.Mode = _settings.Mode;
         _layout.AutoEnabled = _settings.LayoutAutoFix;
+        _layout.LiveFixEnabled = _settings.LayoutLiveFix;
         _foreground.Invalidate();
 
         if (!string.IsNullOrWhiteSpace(_settings.ModelPath))
