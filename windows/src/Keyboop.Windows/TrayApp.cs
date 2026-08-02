@@ -47,7 +47,9 @@ internal sealed class TrayApp : ApplicationContext
         // умолчанию до перезапуска.
         ApplyUiLanguage();
 
-        _history = new VoiceHistory(AppSettings.VoiceHistoryPath);
+        // История шифруется средствами Windows: в файле лежат расшифровки чужой речи, и открытым
+        // текстом рядом с настройками им не место.
+        _history = new VoiceHistory(AppSettings.VoiceHistoryPath, cipher: new DpapiHistoryCipher());
         _voice = new VoiceController(_settings, _engine, _history);
 
         // Языковые данные лежат в папке data рядом с приложением и весят около пяти мегабайт,

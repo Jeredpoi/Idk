@@ -85,6 +85,57 @@ public class VoiceHistoryTests
         Assert.Equal("запись 10", history.Entries[0].Text);
     }
 
+    /// <summary>
+    /// Шифрование прозрачно для остального кода: что записали, то и прочли. Проверяем на
+    /// обратимой подстановке — настоящий DPAPI на не-Windows машине не запустится, а свойство,
+    /// которое здесь важно, от алгоритма не зависит.
+    /// </summary>
+    [Fact]
+    public void SurvivesEncryptionRoundTrip()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"keyboop-history-{Guid.NewGuid():N}.bin");
+        var cipher = new ReversingCipher();
+
+        var written = new VoiceHistory(path, [], cipher) { Clock = () => _now };
+        written.Add("продиктованное");
+
+        var read = new VoiceHistory(path, null, cipher) { Clock = () => _now };
+
+        Assert.Equal("продиктованное", read.Entries[0].Text);
+    }
+
+    /// <summary>
+    /// Файл, который мы не можем расшифровать (чужой профиль, остаток от прежней версии без
+    /// шифрования), не должен мешать запуску — и не должен остаться лежать. Второе важнее
+    /// первого: именно так выглядит история, записанная когда-то открытым текстом.
+    /// </summary>
+    [Fact]
+    public void UnreadableFileIsOverwrittenInsteadOfLeftBehind()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"keyboop-history-{Guid.NewGuid():N}.bin");
+        File.WriteAllText(path, "[{\"At\":\"2026-01-01T12:00:00Z\",\"Text\":\"секрет\"}]");
+
+        var history = new VoiceHistory(path, null, new FailingCipher());
+
+        Assert.Empty(history.Entries);
+        Assert.DoesNotContain("секрет", File.ReadAllText(path), StringComparison.Ordinal);
+    }
+
+    private sealed class ReversingCipher : IHistoryCipher
+    {
+        public byte[] Protect(byte[] plain) => plain.Reverse().ToArray();
+
+        public byte[] Unprotect(byte[] cipher) => cipher.Reverse().ToArray();
+    }
+
+    private sealed class FailingCipher : IHistoryCipher
+    {
+        public byte[] Protect(byte[] plain) => plain;
+
+        public byte[] Unprotect(byte[] cipher) =>
+            throw new System.Security.Cryptography.CryptographicException("не наш файл");
+    }
+
     [Fact]
     public void ClearRemovesEverything()
     {
