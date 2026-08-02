@@ -8,6 +8,7 @@ namespace Keyboop.Core.Tests;
 /// выглядит как английская фраза посреди русского меню или как голый ключ вроде «tray.quit»
 /// вместо названия пункта.
 /// </summary>
+[Collection(LanguageCollection.Name)]
 public class L10nTests
 {
     [Fact]

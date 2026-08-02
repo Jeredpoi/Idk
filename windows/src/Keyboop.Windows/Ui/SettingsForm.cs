@@ -193,6 +193,17 @@ internal sealed class SettingsForm : Form
         browse.Click += (_, _) => ChooseModel();
         page.Controls.Add(browse);
 
+        // Каталог с загрузкой — здесь же, а не только в меню трея: первый запуск начинается
+        // именно с настроек, и отсутствие модели упирается ровно в этот шаг.
+        var catalog = new Button { Text = L10n.T("models.open"), Left = 200, Top = 318, Width = 180 };
+        catalog.Click += (_, _) =>
+        {
+            using var form = new ModelsForm();
+            form.ModelChosen += path => _modelPath.Text = path;
+            form.ShowDialog(this);
+        };
+        page.Controls.Add(catalog);
+
         page.Controls.Add(Caption(L10n.T("settings.language"), 56));
         _language.SetBounds(200, 53, 220, 24);
         _language.DropDownStyle = ComboBoxStyle.DropDownList;

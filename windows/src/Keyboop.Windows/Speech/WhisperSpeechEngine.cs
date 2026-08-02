@@ -25,11 +25,22 @@ internal sealed class WhisperSpeechEngine : IDisposable
 
     internal bool IsModelLoaded => _factory is not null;
 
+    /// <summary>Модель прямо сейчас читается с диска.</summary>
+    internal bool IsLoading { get; private set; }
+
     /// <summary>
-    /// Загрузить модель. Операция дорогая (файл от 75 МБ до 1.5 ГБ), поэтому держим её загруженной
+    /// Загрузить модель. Операция дорогая (файл от 140 МБ до 1,6 ГБ), поэтому держим её загруженной
     /// между диктовками и перезагружаем только при смене файла.
+    ///
+    /// ⚠️ АСИНХРОННО, И ЭТО НЕ УКРАШЕНИЕ. Чтение полутора гигабайт занимает секунды, а вызывают
+    /// нас с потока интерфейса — того самого, на котором висит перехватчик клавиатуры. Занятый
+    /// поток не успевает обработать колбэк, Windows молча снимает перехватчик по таймауту, и для
+    /// человека это выглядит как «после выбора модели перестали работать хоткеи».
+    ///
+    /// ⚠️ Через тот же семафор, что и распознавание. Без него смена модели могла бы освободить
+    /// фабрику посреди чужой диктовки — то есть уронить процесс в неуправляемом коде.
     /// </summary>
-    internal void LoadModel(string modelPath)
+    internal async Task LoadModelAsync(string modelPath)
     {
         if (!File.Exists(modelPath))
         {
@@ -41,14 +52,32 @@ internal sealed class WhisperSpeechEngine : IDisposable
             return;
         }
 
-        _factory?.Dispose();
+        await _gate.WaitAsync().ConfigureAwait(false);
+        IsLoading = true;
 
-        var started = DateTime.UtcNow;
-        _factory = WhisperFactory.FromPath(modelPath);
-        _loadedModelPath = modelPath;
+        try
+        {
+            await Task.Run(() =>
+            {
+                _factory?.Dispose();
+                _factory = null;
+                _loadedModelPath = null;
 
-        Log.Write($"whisper: модель загружена за {(DateTime.UtcNow - started).TotalMilliseconds:F0} мс "
-                  + $"({new FileInfo(modelPath).Length / (1024 * 1024)} МБ)");
+                var started = DateTime.UtcNow;
+                var factory = WhisperFactory.FromPath(modelPath);
+
+                _factory = factory;
+                _loadedModelPath = modelPath;
+
+                Log.Write($"whisper: модель загружена за {(DateTime.UtcNow - started).TotalMilliseconds:F0} мс "
+                          + $"({new FileInfo(modelPath).Length / (1024 * 1024)} МБ)");
+            }).ConfigureAwait(false);
+        }
+        finally
+        {
+            IsLoading = false;
+            _gate.Release();
+        }
     }
 
     /// <summary>

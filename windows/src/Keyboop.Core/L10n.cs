@@ -97,6 +97,8 @@ public static class L10n
 
         ["voice.noModel"] = ("Модель распознавания не выбрана. Откройте настройки и укажите файл модели.",
                              "No speech model selected. Open settings and point Keyboop at a model file."),
+        ["voice.modelLoading"] = ("Модель ещё загружается. Секунду.",
+                                  "The model is still loading. One moment."),
         ["voice.recordFailed"] = ("Не удалось начать запись. Проверьте микрофон и разрешение на доступ к нему.",
                                   "Couldn't start recording. Check the microphone and its permission."),
         ["voice.silence"] = ("Микрофон молчал. Возможно, он занят другим приложением.",
@@ -170,6 +172,40 @@ public static class L10n
             + "забыв переключить язык.",
             "Layout and case don't matter: the shortcut “адр” fires even when typed as “flh” "
             + "with the wrong layout on."),
+
+        // ——— Модели распознавания ———
+        ["models.open"] = ("Скачать модель…", "Download a model…"),
+        ["models.title"] = ("Keyboop — модели распознавания", "Keyboop — speech models"),
+        ["models.sub"] = (
+            "Это единственное место в программе, которое ходит в сеть, и только по нажатию кнопки. "
+            + "Файл скачивается с закреплённой ревизии и проверяется по контрольной сумме: "
+            + "не совпала — не установится.",
+            "This is the only place in the program that uses the network, and only when you press "
+            + "the button. The file comes from a pinned revision and is checked against its "
+            + "checksum: no match, no install."),
+        ["models.download"] = ("Скачать", "Download"),
+        ["models.delete"] = ("Удалить", "Delete"),
+        ["models.use"] = ("Использовать", "Use"),
+        ["models.installed"] = ("скачана", "installed"),
+        ["models.cancel"] = ("Отмена", "Cancel"),
+        ["models.colModel"] = ("Модель", "Model"),
+        ["models.colSize"] = ("Размер", "Size"),
+        ["models.colNote"] = ("Особенности", "Notes"),
+        ["models.colState"] = ("Состояние", "State"),
+        ["models.busy"] = ("Качаю «{0}»…", "Downloading “{0}”…"),
+        ["models.ok"] = ("Модель скачана и проверена.", "Model downloaded and verified."),
+        ["models.errNetwork"] = ("Не удалось скачать: сеть недоступна или файл не отдан.",
+                                 "Download failed: the network is unavailable or the file wasn't served."),
+        ["models.errChecksum"] = ("Контрольная сумма не совпала — файл удалён и не установлен.",
+                                  "The checksum didn't match — the file was deleted, not installed."),
+        ["models.errDisk"] = ("Не удалось записать файл на диск.", "Couldn't write the file to disk."),
+        ["models.confirmDelete"] = ("Удалить скачанную модель «{0}»?", "Delete the downloaded model “{0}”?"),
+
+        ["model.base.note"] = ("быстрая, базовая точность", "fast, basic accuracy"),
+        ["model.small.note"] = ("баланс качества и скорости", "balance of quality and speed"),
+        ["model.medium.note"] = ("выше точность, медленнее", "higher accuracy, slower"),
+        ["model.large.note"] = ("аккуратнее с пунктуацией и связностью, на 1–4 с медленнее",
+                                "cleaner punctuation and phrasing, 1–4 s slower"),
 
         // ——— Спорные пары ———
         ["amb.open"] = ("Спорные пары…", "Ambiguous pairs…"),

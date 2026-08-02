@@ -119,6 +119,11 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
+    /// <summary>
+    /// Загрузить модель, если она выбрана. Ничего не ждём: чтение полутора гигабайт занимает
+    /// секунды, а мы на потоке с перехватчиком клавиатуры — заняв его, мы бы этот перехватчик
+    /// и потеряли.
+    /// </summary>
     private void LoadModelIfConfigured()
     {
         if (string.IsNullOrWhiteSpace(_settings.ModelPath))
@@ -127,12 +132,24 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
+        LoadModelInBackground(_settings.ModelPath, announce: false);
+    }
+
+    private async void LoadModelInBackground(string path, bool announce)
+    {
         try
         {
-            _engine.LoadModel(_settings.ModelPath);
+            await _engine.LoadModelAsync(path);
+
+            if (announce)
+            {
+                ShowBalloon(L10n.T("notice.modelLoaded"));
+            }
         }
-        catch (Exception ex) when (ex is FileNotFoundException or IOException or ApplicationException)
+        catch (Exception ex)
         {
+            // async void: исключение отсюда некому поймать, поэтому ловим ВСЁ. Непойманное здесь
+            // означает не «сообщение в лог», а падение всего процесса.
             Log.Write($"модель: не загружена — {ex.GetType().Name}: {ex.Message}");
             ShowBalloon(L10n.T("notice.modelFailed"));
         }
@@ -144,6 +161,7 @@ internal sealed class TrayApp : ApplicationContext
 
         menu.Items.Add(L10n.T("tray.settings"), null, (_, _) => OpenSettings());
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(L10n.T("models.open"), null, (_, _) => OpenModels());
         menu.Items.Add(L10n.T("tray.chooseModel"), null, (_, _) => ChooseModel());
 
         var language = new ToolStripMenuItem(L10n.T("tray.voiceLanguage"));
@@ -297,19 +315,22 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
-        try
-        {
-            _engine.LoadModel(dialog.FileName);
-            _settings.ModelPath = dialog.FileName;
-            _settings.Save();
-            ShowBalloon(L10n.T("notice.modelLoaded"));
-        }
-        catch (Exception ex)
-        {
-            Log.Write($"модель: выбор не удался — {ex.GetType().Name}: {ex.Message}");
-            MessageBox.Show(L10n.T("error.modelLoad") + ex.Message,
-                "Keyboop", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
+        UseModel(dialog.FileName);
+    }
+
+    /// <summary>Выбрать файл модели: запомнить путь и начать загрузку.</summary>
+    private void UseModel(string path)
+    {
+        _settings.ModelPath = path;
+        _settings.Save();
+        LoadModelInBackground(path, announce: true);
+    }
+
+    private void OpenModels()
+    {
+        using var form = new ModelsForm();
+        form.ModelChosen += UseModel;
+        form.ShowDialog();
     }
 
     private void OpenSettings()

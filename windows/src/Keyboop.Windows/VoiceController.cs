@@ -57,7 +57,10 @@ internal sealed class VoiceController : IDisposable
 
         if (!_engine.IsModelLoaded)
         {
-            Notice?.Invoke(L10n.T("voice.noModel"));
+            // Разделяем два совершенно разных случая. «Модель не выбрана» — это задача человеку;
+            // «модель ещё читается с диска» — это просьба подождать секунду. Одинаковое сообщение
+            // на оба отправляло бы человека в настройки, где всё уже правильно.
+            Notice?.Invoke(L10n.T(_engine.IsLoading ? "voice.modelLoading" : "voice.noModel"));
             return;
         }
 
