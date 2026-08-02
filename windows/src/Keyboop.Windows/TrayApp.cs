@@ -3,6 +3,7 @@ using Keyboop.Core;
 using Keyboop.Core.Layout;
 using Keyboop.Core.Snippets;
 using Keyboop.Core.Speech;
+using Keyboop.Windows.Audio;
 using Keyboop.Windows.Diagnostics;
 using Keyboop.Windows.Interop;
 using Keyboop.Windows.Speech;
@@ -84,6 +85,9 @@ internal sealed class TrayApp : ApplicationContext
         _voice.StateChanged += OnStateChanged;
         _voice.Notice += OnNotice;
 
+        Cues.Enabled = _settings.Sounds;
+        _layout.Converted += Cues.Converted;
+
         _hook.Dictation = new HotkeyBinding
         {
             VirtualKey = _settings.HotkeyVirtualKey,
@@ -95,6 +99,8 @@ internal sealed class TrayApp : ApplicationContext
             Modifiers = _settings.LayoutHotkeyModifiers,
         };
         _hook.Mode = _settings.Mode;
+        _hook.CapsSwitchesLayout = _settings.CapsSwitchesLayout;
+        _hook.CapsSwitchRequested += SwitchLayoutByCaps;
         _hook.IsRecording = () => _voice.IsRecording;
         _hook.DictationStarted += () => _voice.Begin();
         _hook.DictationStopped += () => _voice.End();
@@ -206,6 +212,18 @@ internal sealed class TrayApp : ApplicationContext
             {
                 _settings.LayoutLiveFix = v;
                 _layout.LiveFixEnabled = v;
+            }));
+        menu.Items.Add(Toggle(L10n.T("opt.capsSwitch"), _settings.CapsSwitchesLayout,
+            v =>
+            {
+                _settings.CapsSwitchesLayout = v;
+                _hook.CapsSwitchesLayout = v;
+            }));
+        menu.Items.Add(Toggle(L10n.T("opt.sounds"), _settings.Sounds,
+            v =>
+            {
+                _settings.Sounds = v;
+                Cues.Enabled = v;
             }));
         menu.Items.Add(new ToolStripSeparator());
 
@@ -360,6 +378,8 @@ internal sealed class TrayApp : ApplicationContext
         _hook.Mode = _settings.Mode;
         _layout.AutoEnabled = _settings.LayoutAutoFix;
         _layout.LiveFixEnabled = _settings.LayoutLiveFix;
+        _hook.CapsSwitchesLayout = _settings.CapsSwitchesLayout;
+        Cues.Enabled = _settings.Sounds;
         _foreground.Invalidate();
 
         if (!string.IsNullOrWhiteSpace(_settings.ModelPath))
@@ -387,6 +407,24 @@ internal sealed class TrayApp : ApplicationContext
         _shownLayout = code;
         _tray.Icon = _icons.Layout(code);
         _tray.Text = $"Keyboop — {code}";
+    }
+
+    /// <summary>
+    /// Caps Lock в режиме мгновенного переключения. Зовётся ИЗ КОЛБЭКА ХУКА, поэтому здесь только
+    /// отправка сообщения окну и сброс буфера — ничего дорогого.
+    /// </summary>
+    private void SwitchLayoutByCaps()
+    {
+        var direction = KeyboardLayoutSwitcher.Toggle();
+        if (direction is not bool toCyrillic)
+        {
+            return;
+        }
+
+        // Человек сменил язык сам, посреди набора. Наша модель того, что на экране, после этого
+        // недостоверна: дальше он печатает уже другими буквами.
+        _layout.ResetContext();
+        Cues.Converted(toCyrillic);
     }
 
     private void OpenHistory()
@@ -422,11 +460,13 @@ internal sealed class TrayApp : ApplicationContext
                 case VoiceState.Recording:
                     _tray.Icon = _icons.Listening;
                     _tray.Text = L10n.T("state.recording");
+                    Cues.RecordingStarted();
                     break;
 
                 case VoiceState.Processing:
                     _tray.Icon = _icons.Processing;
                     _tray.Text = L10n.T("state.processing");
+                    Cues.RecordingStopped();
                     break;
 
                 default:

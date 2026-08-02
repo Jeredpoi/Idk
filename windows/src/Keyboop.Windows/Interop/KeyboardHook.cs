@@ -83,6 +83,19 @@ internal sealed class KeyboardHook : IDisposable
     /// <summary>Человек попросил переключить последнее слово вручную.</summary>
     internal event Action? LayoutConvertRequested;
 
+    /// <summary>Нажали Caps Lock в режиме «Caps переключает язык».</summary>
+    internal event Action? CapsSwitchRequested;
+
+    /// <summary>
+    /// Caps Lock переключает язык вместо включения верхнего регистра.
+    ///
+    /// На Windows это делается честно и просто: низкоуровневый перехватчик, вернувший «проглотить»,
+    /// не даёт системе переключить сам замок — ни индикатор, ни регистр не меняются. В macOS-версии
+    /// того же пришлось добиваться перепрошивкой раскладки на уровне HID, потому что там замок
+    /// защёлкивается НИЖЕ перехватчика и проглатывание событие только прячет.
+    /// </summary>
+    internal bool CapsSwitchesLayout { get; set; }
+
     /// <summary>Идёт ли запись прямо сейчас — источник истины держит VoiceController.</summary>
     internal Func<bool> IsRecording { get; set; } = () => false;
 
@@ -183,6 +196,17 @@ internal sealed class KeyboardHook : IDisposable
         {
             DictationCancelled?.Invoke();
             _holdActive = false;
+            return SwallowDown(data.vkCode);
+        }
+
+        const int VK_CAPITAL = 0x14;
+
+        if (CapsSwitchesLayout && data.vkCode == VK_CAPITAL)
+        {
+            // ⚠️ Проглатываем ВСЕГДА, даже если переключение не удалось. Пропустить нажатие
+            // «на всякий случай» означало бы включить капс — то есть сделать ровно то, от чего
+            // человек эту настройку и включил.
+            CapsSwitchRequested?.Invoke();
             return SwallowDown(data.vkCode);
         }
 

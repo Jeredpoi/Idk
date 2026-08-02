@@ -27,6 +27,8 @@ internal sealed class SettingsForm : Form
     private readonly TextBox _modelPath = new();
     private readonly CheckBox _autoFix = new();
     private readonly CheckBox _liveFix = new();
+    private readonly CheckBox _capsSwitch = new();
+    private readonly CheckBox _sounds = new();
     private readonly CheckBox _dropPeriod = new();
     private readonly CheckBox _dropCapital = new();
     private readonly CheckBox _trailingSpace = new();
@@ -61,6 +63,7 @@ internal sealed class SettingsForm : Form
         tabs.TabPages.Add(BuildLayoutTab());
         tabs.TabPages.Add(BuildVoiceTab());
         tabs.TabPages.Add(BuildSnippetsTab());
+        tabs.TabPages.Add(BuildGeneralTab());
         Controls.Add(tabs);
 
         var save = new Button { Text = L10n.T("settings.save"), Left = 320, Top = 392, Width = 90 };
@@ -175,6 +178,41 @@ internal sealed class SettingsForm : Form
             Height = 34,
             ForeColor = SystemColors.GrayText,
             Text = L10n.T("settings.appModesHint"),
+        });
+
+        return page;
+    }
+
+    private TabPage BuildGeneralTab()
+    {
+        var page = new TabPage(L10n.T("tab.general"));
+
+        _capsSwitch.SetBounds(20, 18, 460, 24);
+        _capsSwitch.Text = L10n.T("opt.capsSwitch");
+        page.Controls.Add(_capsSwitch);
+
+        page.Controls.Add(new Label
+        {
+            Left = 40,
+            Top = 44,
+            Width = 440,
+            Height = 34,
+            ForeColor = SystemColors.GrayText,
+            Text = L10n.T("settings.capsHint"),
+        });
+
+        _sounds.SetBounds(20, 88, 460, 24);
+        _sounds.Text = L10n.T("opt.sounds");
+        page.Controls.Add(_sounds);
+
+        page.Controls.Add(new Label
+        {
+            Left = 40,
+            Top = 114,
+            Width = 440,
+            Height = 34,
+            ForeColor = SystemColors.GrayText,
+            Text = L10n.T("settings.soundsHint"),
         });
 
         return page;
@@ -344,6 +382,8 @@ internal sealed class SettingsForm : Form
         _modelPath.Text = _settings.ModelPath;
         _autoFix.Checked = _settings.LayoutAutoFix;
         _liveFix.Checked = _settings.LayoutLiveFix;
+        _capsSwitch.Checked = _settings.CapsSwitchesLayout;
+        _sounds.Checked = _settings.Sounds;
         _dropPeriod.Checked = _settings.DropFinalPeriod;
         _dropCapital.Checked = _settings.DropLeadingCapital;
         _trailingSpace.Checked = _settings.TrailingSpace;
@@ -394,6 +434,8 @@ internal sealed class SettingsForm : Form
         _settings.MicrophoneId = _microphone.SelectedItem is AudioInput chosen ? chosen.Id : string.Empty;
         _settings.LayoutAutoFix = _autoFix.Checked;
         _settings.LayoutLiveFix = _liveFix.Checked;
+        _settings.CapsSwitchesLayout = _capsSwitch.Checked;
+        _settings.Sounds = _sounds.Checked;
         _settings.DropFinalPeriod = _dropPeriod.Checked;
         _settings.DropLeadingCapital = _dropCapital.Checked;
         _settings.TrailingSpace = _trailingSpace.Checked;

@@ -81,6 +81,13 @@ public static class L10n
         ["opt.autoFix"] = ("Исправлять раскладку автоматически на границе слова",
                            "Fix the layout automatically at the word boundary"),
         ["opt.liveFix"] = ("Чинить не дожидаясь пробела", "Fix without waiting for a space"),
+        ["opt.sounds"] = ("Звуковые метки", "Sound cues"),
+        ["opt.capsSwitch"] = ("Caps Lock переключает язык", "Caps Lock switches the language"),
+        ["settings.capsHint"] = (
+            "Caps Lock перестаёт включать верхний регистр и мгновенно меняет язык. "
+            + "Замок и индикатор при этом не срабатывают вовсе.",
+            "Caps Lock stops toggling upper case and switches the language instead. "
+            + "The lock and its indicator never engage at all."),
 
         // ——— Сообщения ———
         ["notice.learned"] = ("Больше не переключаю «{0}». Убрать можно в настройках.",
@@ -123,6 +130,12 @@ public static class L10n
         ["tab.layout"] = ("Раскладка", "Layout"),
         ["tab.voice"] = ("Голос", "Voice"),
         ["tab.snippets"] = ("Сниппеты", "Snippets"),
+        ["tab.general"] = ("Общие", "General"),
+        ["settings.soundsHint"] = (
+            "Короткие тоны: исправленная раскладка, начало и конец диктовки. Этот выключатель "
+            + "гасит весь звук, который издаёт программа.",
+            "Short tones: a fixed layout, the start and the end of a dictation. This switch "
+            + "silences every sound the program makes."),
 
         ["settings.dictation"] = ("Диктовка", "Dictation"),
         ["settings.mode"] = ("Как работает", "How it works"),

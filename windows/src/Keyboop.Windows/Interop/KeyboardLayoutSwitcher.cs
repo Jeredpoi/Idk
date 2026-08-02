@@ -58,6 +58,16 @@ internal static class KeyboardLayoutSwitcher
         return GetKeyboardLayout(thread);
     }
 
+    /// <summary>
+    /// Переключить активное окно на «другой» язык: с кириллицы на латиницу и обратно.
+    /// Возвращает направление, в котором переключились, либо null, если не вышло.
+    /// </summary>
+    internal static bool? Toggle()
+    {
+        var toCyrillic = !ForegroundIsCyrillic();
+        return Switch(toCyrillic) ? toCyrillic : null;
+    }
+
     /// <summary>Все раскладки, включённые у пользователя.</summary>
     internal static IntPtr[] InstalledLayouts()
     {
