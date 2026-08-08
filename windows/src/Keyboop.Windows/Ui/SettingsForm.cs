@@ -125,6 +125,13 @@ internal sealed class SettingsForm : Form
         _liveFix.Text = L10n.T("opt.liveFix");
         page.Controls.Add(_liveFix);
 
+        // ⚠️ ЗАВИСИМОСТЬ ДОЛЖНА БЫТЬ ВИДНА. Правка на лету — частный случай автоматического
+        // исправления и при выключенной автоматике не делает ничего. Две независимые с виду
+        // галочки, из которых вторая молча не работает без первой, — это ровно тот класс
+        // «настройка есть, а власти у неё нет», из-за которого человек идёт писать, что
+        // программа сломана.
+        _autoFix.CheckedChanged += (_, _) => SyncLiveFixAvailability();
+
         // Предупреждение здесь не для красоты: галочка выключена по умолчанию именно потому, что
         // цена ошибки посреди слова выше, и человек должен понимать, на что соглашается.
         page.Controls.Add(new Label
@@ -152,6 +159,7 @@ internal sealed class SettingsForm : Form
             _ignoredWords.Lines = _exceptions.Ignored.OrderBy(w => w, StringComparer.Ordinal).ToArray();
         };
         page.Controls.Add(pairs);
+
         _ignoredWords.SetBounds(20, 120, 460, 72);
         _ignoredWords.Multiline = true;
         _ignoredWords.ScrollBars = ScrollBars.Vertical;
@@ -181,6 +189,20 @@ internal sealed class SettingsForm : Form
         });
 
         return page;
+    }
+
+    /// <summary>
+    /// Правка на лету доступна только вместе с автоматическим исправлением: она его частный
+    /// случай. Снятая автоматика гасит и её — и видно это сразу, а не по отсутствию эффекта.
+    /// </summary>
+    private void SyncLiveFixAvailability()
+    {
+        _liveFix.Enabled = _autoFix.Checked;
+
+        if (!_autoFix.Checked)
+        {
+            _liveFix.Checked = false;
+        }
     }
 
     private TabPage BuildGeneralTab()
@@ -382,6 +404,7 @@ internal sealed class SettingsForm : Form
         _modelPath.Text = _settings.ModelPath;
         _autoFix.Checked = _settings.LayoutAutoFix;
         _liveFix.Checked = _settings.LayoutLiveFix;
+        SyncLiveFixAvailability();
         _capsSwitch.Checked = _settings.CapsSwitchesLayout;
         _sounds.Checked = _settings.Sounds;
         _dropPeriod.Checked = _settings.DropFinalPeriod;

@@ -214,6 +214,16 @@ internal sealed class TrayApp : ApplicationContext
             {
                 _settings.LayoutLiveFix = v;
                 _layout.LiveFixEnabled = v;
+
+                // Правка на лету — частный случай автоматического исправления и без него не
+                // делает ничего. Включив её при выключенной автоматике, человек получил бы
+                // галочку без последствий; включаем автоматику за него, а не молчим.
+                if (v && !_settings.LayoutAutoFix)
+                {
+                    _settings.LayoutAutoFix = true;
+                    _layout.AutoEnabled = true;
+                    _tray.ContextMenuStrip = BuildMenu();
+                }
             }));
         menu.Items.Add(Toggle(L10n.T("opt.capsSwitch"), _settings.CapsSwitchesLayout,
             v =>

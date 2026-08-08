@@ -159,6 +159,14 @@ internal sealed class ModelsForm : Form
 
         var progress = new Progress<double>(fraction =>
         {
+            // Отчёт о прогрессе приходит на поток интерфейса уже после того, как окно могли
+            // закрыть: Progress<T> просто ставит вызов в очередь и ничего не знает про время
+            // жизни формы.
+            if (IsDisposed)
+            {
+                return;
+            }
+
             if (fraction < 0)
             {
                 // Сервер не сказал размер — честнее крутить бесконечную полосу, чем врать про «0 %».
@@ -180,10 +188,26 @@ internal sealed class ModelsForm : Form
         {
             _cancellation.Dispose();
             _cancellation = null;
-            _progress.Visible = false;
-            _progress.Style = ProgressBarStyle.Continuous;
-            _progress.Value = 0;
         }
+
+        // ⚠️ ОКНО МОГЛИ ЗАКРЫТЬ, ПОКА МЫ ЖДАЛИ. Закрытие отменяет загрузку, но управление всё
+        // равно вернётся сюда — уже к уничтоженным элементам, и обращение к любому из них
+        // роняет процесс: обработчик кнопки объявлен async void, ловить исключение оттуда некому.
+        // Продолжать оформление нечего, а вот выбранную модель отдать надо: человек нажал
+        // «Скачать» именно ради неё.
+        if (IsDisposed)
+        {
+            if (result == DownloadResult.Ok)
+            {
+                ModelChosen?.Invoke(ModelDownloader.PathOf(name));
+            }
+
+            return;
+        }
+
+        _progress.Visible = false;
+        _progress.Style = ProgressBarStyle.Continuous;
+        _progress.Value = 0;
 
         _status.Text = result switch
         {

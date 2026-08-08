@@ -146,11 +146,22 @@ internal static class ModelDownloader
             Log.Write($"модель {model}: загрузка отменена");
             return DownloadResult.Cancelled;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException)
+        catch (Exception ex)
         {
+            // ⚠️ ЛОВИМ ВСЁ, И ЭТО НЕ ЛЕНЬ. Зовут нас из обработчика нажатия кнопки, который
+            // объявлен async void: исключение, вышедшее отсюда, ловить уже некому, и оно убивает
+            // весь процесс. Раньше здесь стоял список из двух типов, мимо которого проходил,
+            // например, UnauthorizedAccessException — папка только для чтения, и человек вместо
+            // сообщения об ошибке получал закрывшуюся программу.
             TryDelete(temporary);
             Log.Write($"модель {model}: не скачалась — {ex.GetType().Name}: {ex.Message}");
-            return ex is HttpRequestException ? DownloadResult.NetworkError : DownloadResult.DiskError;
+
+            return ex switch
+            {
+                HttpRequestException => DownloadResult.NetworkError,
+                IOException or UnauthorizedAccessException => DownloadResult.DiskError,
+                _ => DownloadResult.NetworkError,
+            };
         }
     }
 
