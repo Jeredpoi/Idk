@@ -75,6 +75,11 @@
 Всё это живёт в [`PunctuationPrompt`](src/Keyboop.Core/Speech/PunctuationPrompt.cs) и
 [`WhisperDecodeProfile`](src/Keyboop.Core/Speech/WhisperDecodeProfile.cs) — и покрыто тестами.
 
+## Первый запуск
+
+Ставить ничего не нужно: [**ПЕРВЫЙ-ЗАПУСК.md**](ПЕРВЫЙ-ЗАПУСК.md) — пятнадцать минут от готовой
+сборки до проверенной диктовки, вместе с чек-листом того, что нужно проверить на живой машине.
+
 ## Сборка
 
 Нужен [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
