@@ -140,7 +140,29 @@ internal sealed class KeyboardHook : IDisposable
                   + $"переключение vk=0x{LayoutConvert.VirtualKey:X2}");
     }
 
+    /// <summary>
+    /// ⚠️ ВНЕШНЯЯ ОБОЛОЧКА КОЛБЭКА. Сюда нас зовёт САМА WINDOWS из неуправляемого кода, и
+    /// исключение, вышедшее отсюда наверх, не «показывает диалог» — оно завершает процесс
+    /// немедленно и молча. Человек видит только исчезнувший значок в трее, а в логе не остаётся
+    /// ничего, потому что записать уже некому.
+    ///
+    /// Поэтому здесь ловится ВСЁ, без разбора типов. Пропущенное нажатие несравнимо дешевле
+    /// закрывшейся программы, а запись в лог — единственный способ узнать причину на чужой машине.
+    /// </summary>
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        try
+        {
+            return Dispatch(nCode, wParam, lParam);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"хук: СБОЙ в колбэке — {ex}");
+            return NativeMethods.CallNextHookEx(_hook, nCode, wParam, lParam);
+        }
+    }
+
+    private IntPtr Dispatch(int nCode, IntPtr wParam, IntPtr lParam)
     {
         if (nCode < 0)
         {
