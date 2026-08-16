@@ -73,6 +73,7 @@ public static class L10n
         ["log.hint"] = (
             "Содержимого набранного и продиктованного здесь нет — только этапы, длины и коды.",
             "No typed or dictated content here — only stages, lengths and codes."),
+        ["tray.crashes"] = ("Отчёты об авариях…", "Crash reports…"),
         ["tray.quit"] = ("Выход", "Quit"),
 
         ["lang.auto"] = ("Определять сам", "Detect automatically"),

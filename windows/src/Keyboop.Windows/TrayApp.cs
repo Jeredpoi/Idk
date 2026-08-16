@@ -250,6 +250,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(L10n.T("tray.history"), null, (_, _) => OpenHistory());
         menu.Items.Add(L10n.T("tray.log"), null, (_, _) => OpenLog());
+        menu.Items.Add(L10n.T("tray.crashes"), null, (_, _) => OpenCrashReports());
         menu.Items.Add(L10n.T("tray.quit"), null, (_, _) => ExitThread());
 
         return menu;
@@ -443,6 +444,20 @@ internal sealed class TrayApp : ApplicationContext
     {
         using var form = new HistoryForm(_history);
         form.ShowDialog();
+    }
+
+    /// <summary>Папка с отчётами об авариях. Создаём на всякий случай: она может ещё не существовать.</summary>
+    private static void OpenCrashReports()
+    {
+        try
+        {
+            Directory.CreateDirectory(CrashReport.Directory);
+            Process.Start(new ProcessStartInfo(CrashReport.Directory) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"отчёты: папка не открылась — {ex.GetType().Name}");
+        }
     }
 
     private LogWindow? _log;
