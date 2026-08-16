@@ -34,6 +34,9 @@ internal sealed class VoiceController : IDisposable
     /// <summary>Диктовку отменили по Escape — распознавать не нужно.</summary>
     private volatile bool _cancelled;
 
+    /// <summary>Про отсутствие модели говорим окном один раз за запуск, а не на каждое нажатие.</summary>
+    private bool _toldAboutModel;
+
     internal VoiceController(AppSettings settings, WhisperSpeechEngine engine, VoiceHistory history)
     {
         _settings = settings;
@@ -50,8 +53,11 @@ internal sealed class VoiceController : IDisposable
 
     internal void Begin()
     {
+        Log.Write("диктовка: хоткей нажат");
+
         if (_recorder.IsRecording)
         {
+            Log.Write("диктовка: запись уже идёт — повтор пропущен");
             return;
         }
 
@@ -60,7 +66,24 @@ internal sealed class VoiceController : IDisposable
             // Разделяем два совершенно разных случая. «Модель не выбрана» — это задача человеку;
             // «модель ещё читается с диска» — это просьба подождать секунду. Одинаковое сообщение
             // на оба отправляло бы человека в настройки, где всё уже правильно.
-            Notice?.Invoke(L10n.T(_engine.IsLoading ? "voice.modelLoading" : "voice.noModel"));
+            Log.Write(_engine.IsLoading
+                ? "диктовка: ОТКАЗ — модель ещё читается с диска"
+                : "диктовка: ОТКАЗ — модель не выбрана (меню трея → «Скачать модель…»)");
+
+            // ⚠️ Не всплывающей подсказкой. Windows их регулярно прячет — «Фокусировка внимания»,
+            // выключенные уведомления, центр уведомлений вместо экрана. Для случая «программа
+            // вообще ничего не делает» это худший способ объясниться: человек жмёт хоткей,
+            // не видит ничего и решает, что диктовка сломана. Показываем окно, один раз за запуск.
+            if (!_engine.IsLoading && !_toldAboutModel)
+            {
+                _toldAboutModel = true;
+                Notice?.Invoke(L10n.T("voice.noModelLoud"));
+            }
+            else
+            {
+                Notice?.Invoke(L10n.T(_engine.IsLoading ? "voice.modelLoading" : "voice.noModel"));
+            }
+
             return;
         }
 
@@ -73,6 +96,7 @@ internal sealed class VoiceController : IDisposable
             _recorder.DeviceId = _settings.MicrophoneId;
             _recorder.Start();
             StateChanged?.Invoke(VoiceState.Recording);
+            Log.Write("диктовка: запись пошла");
         }
         catch (Exception ex)
         {
@@ -100,10 +124,12 @@ internal sealed class VoiceController : IDisposable
     {
         if (!_recorder.IsRecording)
         {
+            Log.Write("диктовка: хоткей отпущен, но записи не было");
             return;
         }
 
         var samples = _recorder.Stop();
+        Log.Write($"диктовка: запись остановлена, {samples.Length} сэмплов");
 
         if (_cancelled)
         {

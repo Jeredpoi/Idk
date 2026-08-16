@@ -240,6 +240,7 @@ internal sealed class KeyboardHook : IDisposable
 
         if (Matches(Dictation, data.vkCode))
         {
+            Log.Trace($"хоткей диктовки vk=0x{data.vkCode:X2} режим={Mode}");
             HandleDictationKey();
             return SwallowDown(data.vkCode);
         }

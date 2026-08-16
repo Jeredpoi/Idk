@@ -537,7 +537,27 @@ internal sealed class TrayApp : ApplicationContext
         }, null);
     }
 
-    private void OnNotice(string message) => _ui.Post(_ => ShowBalloon(message), null);
+    /// <summary>
+    /// Сообщение человеку.
+    ///
+    /// ⚠️ Длинные сообщения показываем ОКНОМ, а не всплывающей подсказкой. Windows подсказки
+    /// регулярно прячет — «Фокусировка внимания», выключенные уведомления, центр уведомлений
+    /// вместо экрана. Для случая «нажимаю хоткей, ничего не происходит» подсказка — худший
+    /// способ объясниться: человек не видит ничего и решает, что программа сломана.
+    /// </summary>
+    private void OnNotice(string message) => _ui.Post(
+        _ =>
+        {
+            if (message.Contains('\n'))
+            {
+                MessageBox.Show(message, "Keyboop", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                ShowBalloon(message);
+            }
+        },
+        null);
 
     private void ShowBalloon(string message)
     {

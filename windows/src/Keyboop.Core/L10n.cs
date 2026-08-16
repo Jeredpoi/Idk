@@ -115,6 +115,13 @@ public static class L10n
 
         ["voice.noModel"] = ("Модель распознавания не выбрана. Откройте настройки и укажите файл модели.",
                              "No speech model selected. Open settings and point Keyboop at a model file."),
+        ["voice.noModelLoud"] = (
+            "Диктовать пока не на чем: модель распознавания не скачана.\n\n"
+            + "Меню в трее → «Скачать модель…» → large-v3-turbo → «Скачать».\n"
+            + "Это разовое действие, дальше хоткей заработает.",
+            "There is nothing to dictate with yet: no speech model has been downloaded.\n\n"
+            + "Tray menu → \u201CDownload a model…\u201D → large-v3-turbo → Download.\n"
+            + "It is a one-time step; the hotkey works afterwards."),
         ["voice.modelLoading"] = ("Модель ещё загружается. Секунду.",
                                   "The model is still loading. One moment."),
         ["voice.recordFailed"] = ("Не удалось начать запись. Проверьте микрофон и разрешение на доступ к нему.",
