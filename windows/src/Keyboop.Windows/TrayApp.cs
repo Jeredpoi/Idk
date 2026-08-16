@@ -445,16 +445,23 @@ internal sealed class TrayApp : ApplicationContext
         form.ShowDialog();
     }
 
-    private static void OpenLog()
+    private LogWindow? _log;
+
+    /// <summary>
+    /// Живой лог. Окно НЕ модальное: смотреть его надо, продолжая печатать в другой программе.
+    /// Второй раз то же окно не открываем — просто поднимаем существующее.
+    /// </summary>
+    private void OpenLog()
     {
-        try
+        if (_log is { IsDisposed: false })
         {
-            Process.Start(new ProcessStartInfo(Log.FilePath) { UseShellExecute = true });
+            _log.Activate();
+            return;
         }
-        catch (Exception ex)
-        {
-            Log.Write($"лог: не открылся — {ex.GetType().Name}");
-        }
+
+        _log = new LogWindow();
+        _log.FormClosed += (_, _) => _log = null;
+        _log.Show();
     }
 
     /// <summary>

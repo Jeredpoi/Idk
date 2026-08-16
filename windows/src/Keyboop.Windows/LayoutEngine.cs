@@ -95,6 +95,8 @@ internal sealed class LayoutEngine
     /// </summary>
     internal bool OnKeyDown(uint virtualKey, uint scanCode)
     {
+        Log.Trace($"клавиша vk=0x{virtualKey:X2}");
+
         // Ctrl или Alt означают сочетание, а не текст. Буфер после такого недостоверен.
         if (IsHeld(VK_CONTROL) || IsHeld(VK_MENU))
         {
@@ -137,7 +139,10 @@ internal sealed class LayoutEngine
         }
 
         var layout = KeyboardLayoutSwitcher.ForegroundLayout();
+        Log.Trace($"раскладка окна hkl=0x{layout.ToInt64():X}");
+
         var chars = KeyDecoder.Decode(virtualKey, scanCode, layout);
+        Log.Trace($"декодировано {chars.Length} симв.");
 
         if (!KeyDecoder.IsPrintable(chars))
         {
@@ -151,9 +156,11 @@ internal sealed class LayoutEngine
         }
 
         _buffer.Append(chars);
+        Log.Trace($"буфер {_buffer.CurrentWord.Length} симв.");
 
         // Стирание нашего вывода и перенабор оригинала — один из двух честных жестов отмены.
         _undo.Observe(_buffer.CurrentWord);
+        Log.Trace("наблюдатель отката отработал");
         return false;
     }
 
@@ -312,6 +319,7 @@ internal sealed class LayoutEngine
             _ => " ",
         };
 
+        Log.Trace("граница слова");
         _buffer.Boundary(whitespace);
 
         if (!AutoEnabled || !_data.IsLoaded)
@@ -333,6 +341,8 @@ internal sealed class LayoutEngine
         // совсем не «стереть символ»: он ломает введённую команду и удаляет клип на таймлинии.
         // Дешевле всего проверить это до любой работы над словом.
         var mode = _foreground.Mode;
+        Log.Trace($"программа: {_foreground.Executable}, режим «{mode}»");
+
         if (mode == AppMode.Off)
         {
             return;
@@ -374,6 +384,8 @@ internal sealed class LayoutEngine
             var previous = _buffer.ContextWord(forCurrent: false);
             decision = LayoutDetector.Decide(item.Word, _data, _exceptions, previous);
         }
+
+        Log.Trace($"детектор: {(decision.ShouldConvert ? "конвертить" : "оставить")}");
 
         if (!decision.ShouldConvert)
         {
@@ -504,11 +516,15 @@ internal sealed class LayoutEngine
     {
         // Печатаем замену ВМЕСТЕ с хвостом: удаление считается от каретки, а между словом и
         // кареткой уже лежит пробел (и, возможно, начало следующего слова).
+        Log.Trace($"печатаю замену: −{item.DeleteCount} симв.");
+
         if (!TextInjector.ReplaceText(item.DeleteCount, converted + item.Tail))
         {
             Log.Write("замена: система не приняла пакет — слово оставлено как есть");
             return;
         }
+
+        Log.Trace("замена напечатана");
 
         if (completedOnly)
         {
@@ -520,6 +536,7 @@ internal sealed class LayoutEngine
         }
 
         KeyboardLayoutSwitcher.Switch(toCyrillic);
+        Log.Trace("раскладка переключена");
 
         // В лог только измеримое: длина и направление, без содержимого слова.
         Log.Write($"convert-word({reason}): {item.DeleteCount} симв. "

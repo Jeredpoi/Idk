@@ -63,7 +63,16 @@ public static class L10n
         ["tray.pause"] = ("Приостановить", "Pause"),
         ["tray.autostart"] = ("Запускать при входе в систему", "Start at login"),
         ["tray.history"] = ("История диктовок…", "Dictation history…"),
-        ["tray.log"] = ("Показать лог", "Show the log"),
+        ["tray.log"] = ("Живой лог…", "Live log…"),
+        ["log.title"] = ("Keyboop — живой лог", "Keyboop — live log"),
+        ["log.verbose"] = ("Подробно (каждое нажатие)", "Verbose (every keypress)"),
+        ["log.follow"] = ("Следить за концом", "Follow the tail"),
+        ["log.copy"] = ("Копировать", "Copy"),
+        ["log.openFile"] = ("Открыть файл", "Open the file"),
+        ["log.clear"] = ("Очистить", "Clear"),
+        ["log.hint"] = (
+            "Содержимого набранного и продиктованного здесь нет — только этапы, длины и коды.",
+            "No typed or dictated content here — only stages, lengths and codes."),
         ["tray.quit"] = ("Выход", "Quit"),
 
         ["lang.auto"] = ("Определять сам", "Detect automatically"),

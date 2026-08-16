@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 
 namespace Keyboop.Windows.Diagnostics;
@@ -8,7 +9,8 @@ namespace Keyboop.Windows.Diagnostics;
 /// ⚠️ ПРИНЦИП, УНАСЛЕДОВАННЫЙ ОТ macOS-ВЕРСИИ: в лог не пишется НИ ОДНОГО распознанного или
 /// набранного слова. Только длины, счётчики и коды. Диктовка — это личная переписка, пароли,
 /// медицинские вопросы; текстовый лог такого содержания не должен существовать в принципе,
-/// даже если человек сам пришлёт его нам в отчёте.
+/// даже если человек сам пришлёт его нам в отчёте. Подробный режим ниже этого правила не
+/// отменяет: он добавляет ЭТАПЫ обработки, а не содержимое.
 /// </summary>
 public static class Log
 {
@@ -19,6 +21,27 @@ public static class Log
     private static readonly Queue<string> Tail = new();
 
     private const int TailLimit = 300;
+
+    /// <summary>
+    /// Очередь для живого окна.
+    ///
+    /// ⚠️ ИМЕННО ОЧЕРЕДЬ, А НЕ СОБЫТИЕ С ПРЯМЫМ ВЫЗОВОМ. Пишут в лог в том числе из колбэка
+    /// перехватчика — с потока, который ждёт Windows и снимает перехват, если тот задумался.
+    /// Дёрнуть оттуда обновление окна значит делать работу с интерфейсом внутри колбэка.
+    /// Окно само забирает накопленное по таймеру, а запись стоит одну вставку в очередь.
+    /// </summary>
+    private static readonly ConcurrentQueue<string> Live = new();
+
+    private const int LiveLimit = 2000;
+
+    /// <summary>
+    /// Подробный режим: писать этапы обработки нажатий, а не только заметные события.
+    ///
+    /// Выключен по умолчанию — это несколько строк на каждую клавишу, и держать такой поток
+    /// постоянно незачем. Включается на время поиска причины: последняя строка перед обрывом
+    /// показывает, докуда дошла обработка.
+    /// </summary>
+    public static bool Verbose { get; set; }
 
     private static string BuildPath()
     {
@@ -34,6 +57,14 @@ public static class Log
     {
         var line = $"{DateTime.Now:HH:mm:ss.fff}  {message}";
 
+        // В живую очередь кладём ДО замка: окно обязано увидеть строку даже когда файл занят
+        // антивирусом и запись в него буксует.
+        Live.Enqueue(line);
+        while (Live.Count > LiveLimit && Live.TryDequeue(out _))
+        {
+            // Смысл живого лога в хвосте, а не в истории: старое отбрасываем.
+        }
+
         lock (Gate)
         {
             Tail.Enqueue(line);
@@ -44,6 +75,8 @@ public static class Log
 
             try
             {
+                // Дописываем и закрываем на каждой строке. Медленнее буферизации, зато при аварии
+                // на диске остаётся всё до последней строки — а лог нужен ровно для аварий.
                 File.AppendAllText(LogPath, line + Environment.NewLine, Encoding.UTF8);
             }
             catch (IOException)
@@ -62,6 +95,27 @@ public static class Log
                 // о падении — то есть потерю ровно той информации, ради которой лог и заводили.
             }
         }
+    }
+
+    /// <summary>Строка подробного режима. Когда режим выключен, стоит одну проверку флага.</summary>
+    public static void Trace(string message)
+    {
+        if (Verbose)
+        {
+            Write("· " + message);
+        }
+    }
+
+    /// <summary>Забрать накопленное для живого окна.</summary>
+    public static List<string> DrainLive()
+    {
+        var lines = new List<string>();
+        while (Live.TryDequeue(out var line))
+        {
+            lines.Add(line);
+        }
+
+        return lines;
     }
 
     /// <summary>Хвост лога для окна диагностики и отчёта об ошибке.</summary>
