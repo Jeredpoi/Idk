@@ -118,6 +118,47 @@ public static class Log
         return lines;
     }
 
+    /// <summary>
+    /// Хвост лога ИЗ ФАЙЛА.
+    ///
+    /// ⚠️ ИМЕННО ИЗ ФАЙЛА, А НЕ ИЗ ПАМЯТИ, И ЭТО НЕ ПРИДИРКА. Посмертный отчёт о падении
+    /// собирает СЛЕДУЮЩИЙ запуск программы — у него своя, пустая память, а всё, что писал
+    /// умерший процесс, осталось на диске. Первая версия отчёта брала хвост из памяти и выдала
+    /// пустой раздел ровно в том единственном случае, ради которого затевалась.
+    /// </summary>
+    public static string FileTail(int maxLines = 200)
+    {
+        try
+        {
+            if (!File.Exists(LogPath))
+            {
+                return "(файл лога не найден)";
+            }
+
+            // Читаем с общим доступом: файл может быть открыт нами же или чужой программой,
+            // а отказ прочитать лог означал бы отчёт без самого ценного.
+            using var stream = new FileStream(
+                LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+
+            var tail = new Queue<string>(maxLines);
+            while (reader.ReadLine() is { } line)
+            {
+                tail.Enqueue(line);
+                while (tail.Count > maxLines)
+                {
+                    tail.Dequeue();
+                }
+            }
+
+            return tail.Count > 0 ? string.Join(Environment.NewLine, tail) : "(лог пуст)";
+        }
+        catch (Exception ex)
+        {
+            return $"(лог не прочитан: {ex.GetType().Name})";
+        }
+    }
+
     /// <summary>Хвост лога для окна диагностики и отчёта об ошибке.</summary>
     public static string Snapshot()
     {

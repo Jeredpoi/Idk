@@ -131,7 +131,10 @@ internal static class CrashReport
 
         text.AppendLine("--- Последние записи лога ---");
         text.AppendLine("(содержимого набранного и продиктованного здесь нет — только этапы)");
-        text.AppendLine(Log.Snapshot());
+
+        // Из файла, а не из памяти: посмертный отчёт пишет уже следующий процесс, и в его
+        // памяти нет ни строчки от умершего. См. Log.FileTail.
+        text.AppendLine(Log.FileTail());
         text.AppendLine();
 
         text.AppendLine("Приложите этот файл к сообщению об ошибке целиком.");
