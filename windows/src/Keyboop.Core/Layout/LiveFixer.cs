@@ -65,6 +65,8 @@ public sealed class LiveFixer
     /// </summary>
     /// <param name="onScreen">Слово, как оно уже лежит на экране.</param>
     /// <param name="pending">Символ нажатой клавиши — на экране его ЕЩЁ НЕТ, мы его проглатываем.</param>
+    /// <param name="data">Словари и триграммы: без них решать нечем, и метод честно отказывается.</param>
+    /// <param name="exceptions">Списки человека — они сильнее любой статистики.</param>
     public LiveFixPlan? Plan(
         string onScreen, string pending, LayoutData data, IExceptionStore exceptions)
     {
