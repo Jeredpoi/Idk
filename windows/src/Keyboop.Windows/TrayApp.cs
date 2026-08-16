@@ -460,14 +460,36 @@ internal sealed class TrayApp : ApplicationContext
         }
     }
 
-    private LogWindow? _log;
-
     /// <summary>
-    /// Живой лог. Окно НЕ модальное: смотреть его надо, продолжая печатать в другой программе.
-    /// Второй раз то же окно не открываем — просто поднимаем существующее.
+    /// Живой лог — ОТДЕЛЬНЫМ ПРОЦЕССОМ.
+    ///
+    /// ⚠️ Именно отдельным, а не окном внутри нас. Окно в нашем процессе исчезает вместе с нами,
+    /// то есть ровно в тот момент, ради которого его открывали. Отдельный процесс не держит ни
+    /// перехватчика, ни звука, ни распознавания — он просто читает файл и переживает нашу смерть
+    /// вместе с последними строками на экране.
+    ///
+    /// Если запустить не вышло (политика, антивирус), открываем окно у себя: хоть так, чем никак.
     /// </summary>
     private void OpenLog()
     {
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe))
+            {
+                Process.Start(new ProcessStartInfo(exe, Program.LogViewerArgument)
+                {
+                    UseShellExecute = false,
+                });
+
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"лог: отдельный процесс не запустился — {ex.GetType().Name}");
+        }
+
         if (_log is { IsDisposed: false })
         {
             _log.Activate();
@@ -478,6 +500,8 @@ internal sealed class TrayApp : ApplicationContext
         _log.FormClosed += (_, _) => _log = null;
         _log.Show();
     }
+
+    private LogWindow? _log;
 
     /// <summary>
     /// Состояние приходит с фонового потока распознавания, а трогать NotifyIcon можно только

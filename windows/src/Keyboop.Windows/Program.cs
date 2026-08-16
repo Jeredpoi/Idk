@@ -10,9 +10,24 @@ internal static class Program
     /// </summary>
     private static Mutex? _single;
 
+    /// <summary>Ключ, которым запускается отдельное окно лога.</summary>
+    internal const string LogViewerArgument = "--log";
+
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
+        // ⚠️ РЕЖИМ ПРОСМОТРЩИКА — ДО ВСЕГО ОСТАЛЬНОГО, И ДО ЗАМКА ЕДИНСТВЕННОГО ЭКЗЕМПЛЯРА.
+        // Это тот же файл программы, запущенный вторым процессом ради одного окна: ни
+        // перехватчика, ни звука, ни распознавания он не поднимает. Смысл в том, чтобы окно
+        // пережило смерть основного процесса — иначе лог исчезает ровно тогда, когда на него
+        // смотрят. Замок трогать нельзя: он на то и единственный экземпляр.
+        if (args.Contains(LogViewerArgument, StringComparer.OrdinalIgnoreCase))
+        {
+            ApplicationConfiguration.Initialize();
+            Application.Run(new Ui.LogWindow(standalone: true));
+            return;
+        }
+
         _single = new Mutex(initiallyOwned: true, "Keyboop.Windows.SingleInstance", out var isFirst);
         if (!isFirst)
         {
@@ -35,6 +50,9 @@ internal static class Program
         // к отчёту, собранному задним числом.
         var previousCrash = CrashReport.BeginSession();
 
+        // Поворот — только здесь: в процессе окна лога это переименовало бы файл под пишущей
+        // рукой основного.
+        Log.Rotate();
         Log.Write("=== Keyboop запущен ===");
 
         if (previousCrash is not null)
@@ -110,6 +128,10 @@ internal static class Program
         try
         {
             Log.Write($"АВАРИЯ ({what}): {ex}");
+
+            // Дождаться, пока фоновый писатель допишет: иначе отчёт получит лог без последних
+            // строк — то есть без самого нужного.
+            Log.Flush();
             report = CrashReport.Save(what, ex);
         }
         catch
