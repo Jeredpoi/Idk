@@ -15,7 +15,20 @@ namespace Keyboop.Windows.Interop;
 internal static class KeyboardLayoutSwitcher
 {
     private const uint WM_INPUTLANGCHANGEREQUEST = 0x0050;
-    private const int INPUTLANGCHANGE_FORWARD = 0x0002;
+
+    /// <summary>
+    /// ⚠️ ФЛАГИ ЗДЕСЬ ОБЯЗАНЫ БЫТЬ НУЛЁМ, И ЭТО НЕ МЕЛОЧЬ.
+    ///
+    /// У этого сообщения два несовместимых режима. Ноль в wParam означает «переключись на
+    /// раскладку, которую я передал в lParam». А INPUTLANGCHANGE_FORWARD (0x0002) означает
+    /// «переключись на СЛЕДУЮЩУЮ по списку», и тогда lParam ИГНОРИРУЕТСЯ полностью.
+    ///
+    /// Раньше здесь стоял FORWARD — то есть выбранная детектором раскладка отбрасывалась, а
+    /// система просто листала список по кругу. При двух раскладках это выглядело почти правильно
+    /// (следующая = другая), но направление мы не задавали вовсе: просьба «переключись на
+    /// русский», отправленная когда русский уже активен, уводила в латиницу. Отсюда и дёрганье.
+    /// </summary>
+    private const int UseGivenLayout = 0;
 
     private const ushort LANG_ENGLISH = 0x09;
     private const ushort LANG_RUSSIAN = 0x19;
@@ -130,8 +143,16 @@ internal static class KeyboardLayoutSwitcher
             return false;
         }
 
+        // Уже там, куда просят, — не трогаем. Лишняя просьба переключиться не бесплатна: окно
+        // перерисовывает языковую панель, а при неверных флагах ещё и уводила раскладку в
+        // сторону. Молчать здесь дешевле во всех смыслах.
+        if (GetKeyboardLayout(GetWindowThreadProcessId(window, out _)) == target)
+        {
+            return true;
+        }
+
         // PostMessage, а не SendMessage: синхронная отправка ждала бы ответа чужого окна, а мы
         // вызываемся с пути обработки ввода, где ждать нельзя вообще ничего.
-        return PostMessageW(window, WM_INPUTLANGCHANGEREQUEST, new IntPtr(INPUTLANGCHANGE_FORWARD), target);
+        return PostMessageW(window, WM_INPUTLANGCHANGEREQUEST, new IntPtr(UseGivenLayout), target);
     }
 }

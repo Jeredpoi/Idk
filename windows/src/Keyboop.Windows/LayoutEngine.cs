@@ -95,8 +95,6 @@ internal sealed class LayoutEngine
     /// </summary>
     internal bool OnKeyDown(uint virtualKey, uint scanCode)
     {
-        Log.Trace($"клавиша vk=0x{virtualKey:X2}");
-
         // Ctrl или Alt означают сочетание, а не текст. Буфер после такого недостоверен.
         if (IsHeld(VK_CONTROL) || IsHeld(VK_MENU))
         {
@@ -139,10 +137,7 @@ internal sealed class LayoutEngine
         }
 
         var layout = KeyboardLayoutSwitcher.ForegroundLayout();
-        Log.Trace($"раскладка окна hkl=0x{layout.ToInt64():X}");
-
         var chars = KeyDecoder.Decode(virtualKey, scanCode, layout);
-        Log.Trace($"декодировано {chars.Length} симв.");
 
         if (!KeyDecoder.IsPrintable(chars))
         {
@@ -156,11 +151,15 @@ internal sealed class LayoutEngine
         }
 
         _buffer.Append(chars);
-        Log.Trace($"буфер {_buffer.CurrentWord.Length} симв.");
 
         // Стирание нашего вывода и перенабор оригинала — один из двух честных жестов отмены.
         _undo.Observe(_buffer.CurrentWord);
-        Log.Trace("наблюдатель отката отработал");
+
+        // ⚠️ ОДНА СТРОКА НА НАЖАТИЕ, А НЕ ПЯТЬ. Отдельная запись на каждый шаг превращала лог
+        // в стену, которую невозможно читать, — а нужен он ровно для того, чтобы глазами найти
+        // место обрыва. Здесь всё, что нужно: код клавиши, раскладка окна и длина слова.
+        Log.Trace($"клавиша vk=0x{virtualKey:X2} · {(PrimaryIsCyrillic(layout) ? "RU" : "EN")} "
+                  + $"· буфер {_buffer.CurrentWord.Length}");
         return false;
     }
 
@@ -319,7 +318,6 @@ internal sealed class LayoutEngine
             _ => " ",
         };
 
-        Log.Trace("граница слова");
         _buffer.Boundary(whitespace);
 
         if (!AutoEnabled || !_data.IsLoaded)
@@ -341,7 +339,7 @@ internal sealed class LayoutEngine
         // совсем не «стереть символ»: он ломает введённую команду и удаляет клип на таймлинии.
         // Дешевле всего проверить это до любой работы над словом.
         var mode = _foreground.Mode;
-        Log.Trace($"программа: {_foreground.Executable}, режим «{mode}»");
+        Log.Trace($"граница слова · {_foreground.Executable} · режим «{mode}»");
 
         if (mode == AppMode.Off)
         {
@@ -385,7 +383,7 @@ internal sealed class LayoutEngine
             decision = LayoutDetector.Decide(item.Word, _data, _exceptions, previous);
         }
 
-        Log.Trace($"детектор: {(decision.ShouldConvert ? "конвертить" : "оставить")}");
+        Log.Trace($"детектор: {(decision.ShouldConvert ? "конвертить" : "оставить как есть")}");
 
         if (!decision.ShouldConvert)
         {
@@ -516,15 +514,13 @@ internal sealed class LayoutEngine
     {
         // Печатаем замену ВМЕСТЕ с хвостом: удаление считается от каретки, а между словом и
         // кареткой уже лежит пробел (и, возможно, начало следующего слова).
-        Log.Trace($"печатаю замену: −{item.DeleteCount} симв.");
+        Log.Trace($"печатаю замену −{item.DeleteCount} симв.");
 
         if (!TextInjector.ReplaceText(item.DeleteCount, converted + item.Tail))
         {
             Log.Write("замена: система не приняла пакет — слово оставлено как есть");
             return;
         }
-
-        Log.Trace("замена напечатана");
 
         if (completedOnly)
         {
@@ -536,7 +532,6 @@ internal sealed class LayoutEngine
         }
 
         KeyboardLayoutSwitcher.Switch(toCyrillic);
-        Log.Trace("раскладка переключена");
 
         // В лог только измеримое: длина и направление, без содержимого слова.
         Log.Write($"convert-word({reason}): {item.DeleteCount} симв. "
@@ -544,6 +539,10 @@ internal sealed class LayoutEngine
 
         Converted?.Invoke(toCyrillic);
     }
+
+    /// <summary>Кириллическая ли раскладка — только для короткой строки в логе.</summary>
+    private static bool PrimaryIsCyrillic(IntPtr layout) =>
+        layout != IntPtr.Zero && ((ulong)layout & 0x3FF) == 0x19;
 
     private static bool IsHeld(int virtualKey) =>
         (NativeMethods.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
