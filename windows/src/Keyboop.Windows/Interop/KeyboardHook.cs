@@ -240,7 +240,15 @@ internal sealed class KeyboardHook : IDisposable
 
         if (Matches(Dictation, data.vkCode))
         {
-            Log.Trace($"хоткей диктовки vk=0x{data.vkCode:X2} режим={Mode}");
+            // ⚠️ АВТОПОВТОР НЕ ЛОГИРУЕМ. Зажатая клавиша шлёт нажатие каждые ~15 мс, и в режиме
+            // удержания это сотни строк за одну диктовку — лог превращался в сплошной столбец
+            // «хоткей диктовки», в котором тонуло всё остальное. Само нажатие обрабатываем как
+            // прежде: повторный старт записи гасит проверка внутри.
+            if (!_holdActive)
+            {
+                Log.Trace($"хоткей диктовки vk=0x{data.vkCode:X2} режим={Mode}");
+            }
+
             HandleDictationKey();
             return SwallowDown(data.vkCode);
         }

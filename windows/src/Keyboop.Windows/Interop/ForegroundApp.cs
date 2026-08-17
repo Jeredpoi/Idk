@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text;
 using Keyboop.Core.Layout;
 using Keyboop.Windows.Diagnostics;
 
@@ -30,10 +29,22 @@ internal sealed class ForegroundApp
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint processId);
 
+    /// <summary>
+    /// ⚠️ БУФЕР — char[], А НЕ StringBuilder, И ЭТО НЕ ВКУСОВЩИНА.
+    ///
+    /// Маршалинг StringBuilder в вызов, который дописывает строку, — известный источник порчи
+    /// памяти: среда выделяет промежуточный буфер по Capacity, копирует туда и обратно, и любое
+    /// расхождение между Capacity и переданным размером система замечает не сразу, а позже —
+    /// нарушением доступа где-то в стороне. Такое падение .NET перехватить не может: процесс
+    /// исчезает мгновенно и молча, без исключения. Ровно так выглядела наша авария.
+    ///
+    /// С char[] промежуточного буфера нет вовсе: среда закрепляет массив и передаёт указатель
+    /// на него. Размер, который мы сообщаем системе, и размер массива — одно и то же число.
+    /// </summary>
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool QueryFullProcessImageNameW(
-        IntPtr process, uint flags, StringBuilder buffer, ref uint size);
+        IntPtr process, uint flags, [Out] char[] buffer, ref uint size);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -126,15 +137,24 @@ internal sealed class ForegroundApp
 
         try
         {
-            var size = 512u;
-            var buffer = new StringBuilder((int)size);
+            // Длина пути в Windows ограничена 32767 символами, но нам нужно только имя файла,
+            // а путь такой длины не встречается у настоящих программ. Полкилобайта с запасом.
+            var buffer = new char[512];
+            var size = (uint)buffer.Length;
 
             if (!QueryFullProcessImageNameW(process, 0, buffer, ref size))
             {
                 return string.Empty;
             }
 
-            return Path.GetFileName(buffer.ToString());
+            // size — сколько символов система записала, БЕЗ завершающего нуля. Берём ровно
+            // столько: читать весь массив значило бы прихватить хвост из нулей.
+            if (size == 0 || size > buffer.Length)
+            {
+                return string.Empty;
+            }
+
+            return Path.GetFileName(new string(buffer, 0, (int)size));
         }
         finally
         {
