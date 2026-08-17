@@ -6,6 +6,11 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- Анализаторы .NET: ради CA1838 (см. windows/.editorconfig) — правила, которое ловит
+         маршалинг StringBuilder в P/Invoke. Ровно этот дефект уронил программу на живой машине. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
     <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
 

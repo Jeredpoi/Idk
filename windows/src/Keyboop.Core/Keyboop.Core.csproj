@@ -10,6 +10,11 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- Анализаторы .NET: ради CA1838 (см. windows/.editorconfig) — правила, которое ловит
+         маршалинг StringBuilder в P/Invoke. Ровно этот дефект уронил программу на живой машине. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <!-- CS1591 — «нет XML-комментария у публичного члена». Комментируем по смыслу, а не для галочки. -->
     <NoWarn>$(NoWarn);CS1591</NoWarn>
