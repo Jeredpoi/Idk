@@ -100,6 +100,11 @@ public static class Log
     {
         var line = $"{DateTime.Now:HH:mm:ss.fff}  {message}";
 
+        // ⚠️ ПЕРВЫМ ДЕЛОМ — В КОЛЬЦО, ПЕРЕЖИВАЮЩЕЕ ПАДЕНИЕ. Всё остальное ниже либо в памяти
+        // (гибнет вместе с процессом), либо в очереди фонового писателя (не успевает дойти до
+        // диска при нативной аварии). Ради посмертного разбора важна именно эта строка.
+        Breadcrumbs.Write(line);
+
         Live.Enqueue(line);
         while (Live.Count > LiveLimit && Live.TryDequeue(out _))
         {

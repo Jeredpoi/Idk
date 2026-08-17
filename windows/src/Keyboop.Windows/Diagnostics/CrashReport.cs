@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Keyboop.Core.Layout;
 
 namespace Keyboop.Windows.Diagnostics;
 
@@ -129,12 +130,17 @@ internal static class CrashReport
         AppendEnvironment(text);
         text.AppendLine();
 
-        text.AppendLine("--- Последние записи лога ---");
+        // ⚠️ СЛЕД ИЗ КОЛЬЦА — ГЛАВНЫЙ РАЗДЕЛ ОТЧЁТА, И ИДЁТ ПЕРВЫМ ИЗ ДВУХ. Обычный лог пишет
+        // фоновый поток, и при нативном падении его очередь гибнет вместе с процессом — теряется
+        // ровно хвост. Кольцо лежит в отображённом в память файле: страницы дописывает система,
+        // поэтому последние строки умершего процесса остаются на диске.
+        text.AppendLine("--- След последних событий (переживает падение) ---");
         text.AppendLine("(содержимого набранного и продиктованного здесь нет — только этапы)");
+        text.AppendLine(Breadcrumbs.ReadAll());
+        text.AppendLine();
 
-        // Из файла, а не из памяти: посмертный отчёт пишет уже следующий процесс, и в его
-        // памяти нет ни строчки от умершего. См. Log.FileTail.
-        text.AppendLine(Log.FileTail());
+        text.AppendLine("--- Файл лога, хвост ---");
+        text.AppendLine(Log.FileTail(150));
         text.AppendLine();
 
         text.AppendLine("Приложите этот файл к сообщению об ошибке целиком.");
@@ -157,6 +163,13 @@ internal static class CrashReport
             Line("Программа:",
                 typeof(CrashReport).Assembly.GetName().Version?.ToString() ?? "неизвестно");
             Line("Подробный лог:", Log.Verbose ? "включён" : "выключен");
+
+            // Языковые данные — первое, что стоит проверять: без них исправление раскладки
+            // не делает ничего, и это выглядит как «программа не работает».
+            Line("Папка данных:", LayoutData.DataDirectory);
+            Line("Данные загружены:", LayoutData.Shared.IsLoaded
+                ? $"да (RU {LayoutData.Shared.WordsRu.Count}, EN {LayoutData.Shared.WordsEn.Count} слов)"
+                : "НЕТ — раскладка исправляться не может");
 
             // Раскладки — прямо по делу: почти всё, что делает программа, зависит от их набора,
             // а «нет нужной раскладки» выглядит для человека как «не работает переключение».

@@ -53,6 +53,7 @@ internal static class Program
         // Поворот — только здесь: в процессе окна лога это переименовало бы файл под пишущей
         // рукой основного.
         Log.Rotate();
+        Breadcrumbs.MarkSessionStart();
         Log.Write("=== Keyboop запущен ===");
 
         if (previousCrash is not null)
