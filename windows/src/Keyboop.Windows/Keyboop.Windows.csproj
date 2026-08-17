@@ -44,9 +44,17 @@
     конвертация не нужна, и копия в репозитории не заводится. Пять мегабайт, читаются лениво.
   -->
   <ItemGroup>
+    <!--
+      ⚠️ CopyToPublishDirectory ОБЯЗАТЕЛЕН, а не дублирует предыдущую строку.
+      CopyToOutputDirectory кладёт файлы рядом со сборкой при обычном build; публикация
+      (dotnet publish) — отдельный набор правил, и без явного указания данные могли туда не
+      доехать. А без словарей детектор не переключает НИ ОДНОГО слова — и делает это молча,
+      что со стороны неотличимо от «программа не работает».
+    -->
     <Content Include="../../../Sources/Keyboop/Resources/*.json"
              Link="data/%(Filename)%(Extension)"
-             CopyToOutputDirectory="PreserveNewest" />
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -85,6 +85,25 @@ jobs:
           -p:PublishSingleFile=false
           -o artifacts/keyboop-win
 
+      - name: Проверить, что языковые данные попали в сборку
+        # Без этой проверки отсутствие словарей обнаруживается только на живой машине — и
+        # выглядит как «программа не переключает раскладку», без единой подсказки о причине.
+        shell: pwsh
+        run: |
+          $data = "artifacts/keyboop-win/data"
+          Write-Host "Содержимое $data :"
+          Get-ChildItem $data -ErrorAction SilentlyContinue | Format-Table Name, Length
+
+          $need = @("words_ru.json","words_en.json","trigrams_ru.json","trigrams_en.json")
+          $missing = $need | Where-Object { -not (Test-Path "$data/$_") }
+
+          if ($missing) {
+            Write-Error "В сборке нет языковых данных: $($missing -join ', ')"
+            exit 1
+          }
+
+          Write-Host "Все четыре файла на месте."
+
       - name: Выложить сборку
         uses: actions/upload-artifact@v4
         with:

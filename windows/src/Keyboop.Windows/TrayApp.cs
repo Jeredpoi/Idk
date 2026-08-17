@@ -65,6 +65,30 @@ internal sealed class TrayApp : ApplicationContext
         };
         _ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
 
+        // ⚠️ БЕЗ ЯЗЫКОВЫХ ДАННЫХ ИСПРАВЛЕНИЕ РАСКЛАДКИ НЕ РАБОТАЕТ ВООБЩЕ, и раньше оно молчало
+        // об этом. Детектору нечем решать: он оставляет как есть каждое слово, а человек видит
+        // «программа ничего не делает» и не имеет ни единой подсказки, почему. Молчаливый отказ
+        // главной функции — худший вид отказа, поэтому говорим прямо и с путём к папке.
+        if (!LayoutData.Shared.IsLoaded)
+        {
+            Log.Write($"ДАННЫЕ НЕ НАЙДЕНЫ: {LayoutData.DataDirectory} — раскладка исправляться не будет");
+
+            MessageBox.Show(
+                "Не найдены языковые данные — исправление раскладки работать не будет.\n\n"
+                + "Рядом с программой должна лежать папка «data» с четырьмя файлами "
+                + "(words_ru.json, words_en.json, trigrams_ru.json, trigrams_en.json).\n\n"
+                + "Ожидалась здесь:\n" + LayoutData.DataDirectory + "\n\n"
+                + "Скорее всего архив распакован не полностью.",
+                "Keyboop",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        }
+        else
+        {
+            Log.Write($"данные: словари и триграммы загружены "
+                      + $"(RU {LayoutData.Shared.WordsRu.Count}, EN {LayoutData.Shared.WordsEn.Count} слов)");
+        }
+
         _tray = new NotifyIcon
         {
             Icon = _icons.Layout("EN"),
